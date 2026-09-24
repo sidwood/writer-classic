@@ -22,6 +22,44 @@ pub fn replace_file(path: &Path, temporary: &Path) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn browse_native_versions(window: tauri::Window, path: String) -> Result<(), String> {
+    use tauri::Emitter;
+    let _main = objc2::MainThreadMarker::new().ok_or("Versions require the main thread")?;
+    extern "C" fn finished(context: *mut std::ffi::c_void) {
+        let window = unsafe { Box::from_raw(context as *mut tauri::Window) };
+        let _ = window.emit_to(
+            tauri::EventTarget::webview_window(window.label()),
+            "versions-finished",
+            (),
+        );
+    }
+    unsafe extern "C" {
+        fn classic_browse_versions(
+            window: *mut std::ffi::c_void,
+            path: *const std::ffi::c_char,
+            finished: extern "C" fn(*mut std::ffi::c_void),
+            context: *mut std::ffi::c_void,
+        ) -> *mut std::ffi::c_char;
+        fn free(pointer: *mut std::ffi::c_void);
+    }
+    let pointer = window.ns_window().map_err(|e| e.to_string())?;
+    let path = std::ffi::CString::new(path).map_err(|e| e.to_string())?;
+    let context = Box::into_raw(Box::new(window)).cast();
+    let error = unsafe { classic_browse_versions(pointer, path.as_ptr(), finished, context) };
+    if error.is_null() {
+        Ok(())
+    } else {
+        let message = unsafe { std::ffi::CStr::from_ptr(error) }
+            .to_string_lossy()
+            .into_owned();
+        unsafe {
+            free(error.cast());
+            drop(Box::from_raw(context as *mut tauri::Window));
+        }
+        Err(message)
+    }
+}
 #[derive(Serialize)]
 pub struct Version {
     pub path: String,
@@ -115,6 +153,56 @@ pub fn icloud_status() -> Result<String, String> {
         .ok_or("No iCloud ubiquity container is available. An Apple Developer signing identity and iCloud container entitlement are required. Files in iCloud Drive can still be opened and saved through the system dialogs.".into())
 }
 
+pub fn within_icloud(root: &Path, destination: &Path) -> bool {
+    let Ok(root) = std::fs::canonicalize(root) else {
+        return false;
+    };
+    let Some(parent) = destination.parent() else {
+        return false;
+    };
+    std::fs::canonicalize(parent).is_ok_and(|parent| parent == root || parent.starts_with(&root))
+}
+
+#[tauri::command]
+pub fn icloud_documents() -> Result<String, String> {
+    let path = std::path::PathBuf::from(icloud_status()?).join("Documents");
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub fn list_icloud() -> Result<Vec<String>, String> {
+    let root = std::path::PathBuf::from(icloud_documents()?);
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        if entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false)
+        {
+            files.push(entry.path().to_string_lossy().into_owned());
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+#[tauri::command]
+pub fn move_to_icloud(path: String, destination: String) -> Result<(), String> {
+    let root = std::path::PathBuf::from(icloud_documents()?);
+    if !within_icloud(&root, Path::new(&destination)) {
+        return Err("Choose a destination in the iCloud document container".into());
+    }
+    NSFileManager::defaultManager()
+        .setUbiquitous_itemAtURL_destinationURL_error(
+            true,
+            &url(Path::new(&path)),
+            &url(Path::new(&destination)),
+        )
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn text_service(service: String) -> Result<(), String> {
     use objc2::{sel, MainThreadMarker};
@@ -153,7 +241,14 @@ pub fn set_document_header(
     use objc2_app_kit::{NSImage, NSWindow, NSWindowButton, NSWindowTitleVisibility};
     use objc2_foundation::{NSData, NSSize};
     let _main = MainThreadMarker::new().ok_or("Document title updates require the main thread")?;
-    let image = NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(&icon))
+    let bundled;
+    let bytes = if icon.is_empty() {
+        bundled = include_bytes!("../../brand/markdown-document-icon.png").to_vec();
+        bundled.as_slice()
+    } else {
+        icon.as_slice()
+    };
+    let image = NSImage::initWithData(NSImage::alloc(), &NSData::with_bytes(bytes))
         .ok_or("Could not load the Markdown document icon")?;
     image.setSize(NSSize::new(16.0, 16.0));
     let pointer = window.ns_window().map_err(|e| e.to_string())?;
@@ -161,13 +256,19 @@ pub fn set_document_header(
     let native = unsafe { &*(pointer as *const NSWindow) };
     let represented = path
         .map(|path| url(Path::new(&path)))
-        .or_else(|| NSURL::URLWithString(&NSString::from_str("writer-classic:Untitled.md")));
+        .or_else(|| Some(url(Path::new("/Untitled.md"))));
     native.setRepresentedURL(represented.as_deref());
     native.setTitle(&NSString::from_str(&title));
     native.setTitleVisibility(NSWindowTitleVisibility::Visible);
     native.setDocumentEdited(edited);
     if let Some(proxy) = native.standardWindowButton(NSWindowButton::DocumentIconButton) {
         proxy.setImage(Some(&image));
+    }
+    unsafe extern "C" {
+        fn classic_center_title(window: *mut std::ffi::c_void);
+    }
+    unsafe {
+        classic_center_title(pointer);
     }
     Ok(())
 }
@@ -203,5 +304,70 @@ mod tests {
         move_document(from.clone(), to.clone()).unwrap();
         assert!(!Path::new(&from).exists());
         assert_eq!(std::fs::read_to_string(to).unwrap(), "unchanged");
+    }
+    #[test]
+    fn icloud_destination_must_stay_inside_the_container() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Documents");
+        std::fs::create_dir(&root).unwrap();
+        assert!(within_icloud(&root, &root.join("notes.md")));
+        assert!(!within_icloud(
+            &root,
+            dir.path().join("outside.md").as_path()
+        ));
+    }
+    #[test]
+    fn bundled_document_icon_matches_the_handed_off_png() {
+        let bundled = include_bytes!("../../brand/markdown-document-icon.png");
+        let disk = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../brand/markdown-document-icon.png"
+        ))
+        .unwrap();
+        assert_eq!(bundled, disk.as_slice());
+        assert!(bundled.starts_with(b"\x89PNG"));
+    }
+    #[test]
+    fn native_title_is_centered_at_860_and_1280_and_after_resize() {
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/src/classic-native.m");
+        let icon = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../brand/markdown-document-icon.png"
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("title-geometry");
+        let compile = std::process::Command::new("clang")
+            .args([
+                "-fobjc-arc",
+                "-framework",
+                "Cocoa",
+                "-DCLASSIC_TITLE_GEOMETRY_MAIN",
+                "-x",
+                "objective-c",
+                source,
+                "-o",
+            ])
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(
+            compile.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+        let measured = std::process::Command::new(&binary)
+            .arg(icon)
+            .output()
+            .unwrap();
+        assert!(
+            measured.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&measured.stdout),
+            String::from_utf8_lossy(&measured.stderr)
+        );
+        let report = String::from_utf8_lossy(&measured.stdout);
+        assert!(report.contains("width=860.0"), "{report}");
+        assert!(report.contains("width=1280.0"), "{report}");
+        assert!(report.contains("resize "), "{report}");
     }
 }

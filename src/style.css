@@ -178,6 +178,8 @@ kbd {
 }
 .unfocused-sentence {
   color: var(--dimmed) !important;
+  filter: blur(0.8px);
+  opacity: 0.85;
 }
 .cm-panels {
   background: var(--chrome) !important;
@@ -264,8 +266,9 @@ footer button[aria-pressed="true"] {
   color: var(--accent);
   font-size: 10px;
   align-self: center;
+  opacity: 1;
 }
-.chrome-hidden footer:not(:hover):not(:focus-within) {
+.chrome-hidden footer:not(:hover):not(:focus-within) > :not(.vim-mode) {
   opacity: 0;
 }
 main:has(.cm-search) footer {

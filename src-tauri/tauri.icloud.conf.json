@@ -1,0 +1,3 @@
+{
+  "bundle": { "macOS": { "entitlements": "Entitlements.icloud.plist" } }
+}

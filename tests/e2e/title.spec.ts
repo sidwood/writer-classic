@@ -20,6 +20,9 @@ for (const width of [860, 1280]) {
     });
     const title = page.locator(".document-title");
     await expect(title).toHaveText("A document title.md");
+    await page.getByRole("textbox", { name: "Document text" }).fill("Changed");
+    await expect(title).toHaveText("A document title.md");
+    await expect(page).toHaveTitle("A document title.md");
     const cluster = (await page.locator(".browser-title").boundingBox())!;
     expect(Math.abs(cluster.x + cluster.width / 2 - width / 2)).toBeLessThan(1);
     const iconBox = (await icon.boundingBox())!,

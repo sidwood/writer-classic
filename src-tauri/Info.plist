@@ -4,14 +4,15 @@
   <key>CFBundleDocumentTypes</key><array>
     <dict>
       <key>CFBundleTypeName</key><string>Markdown</string>
+      <key>NSDocumentClass</key><string>ClassicHistoryDocument</string>
       <key>CFBundleTypeRole</key><string>Editor</string>
       <key>CFBundleTypeIconFile</key><string>markdown-document-icon.icns</string>
-      <key>LSHandlerRank</key><string>Alternate</string>
       <key>CFBundleTypeExtensions</key><array><string>md</string><string>markdown</string><string>mmd</string><string>multimarkdown</string><string>mdown</string><string>mkdn</string><string>mkd</string><string>mdwn</string><string>mdtxt</string><string>mdtext</string><string>mdml</string></array>
-      <key>LSItemContentTypes</key><array><string>net.daringfireball.markdown</string></array>
+      <key>LSItemContentTypes</key><array><string>com.sidwood.writer-classic.markdown</string><string>net.daringfireball.markdown</string></array>
     </dict>
     <dict>
       <key>CFBundleTypeName</key><string>Plain Text</string>
+      <key>NSDocumentClass</key><string>ClassicHistoryDocument</string>
       <key>CFBundleTypeRole</key><string>Editor</string>
       <key>LSHandlerRank</key><string>Alternate</string>
       <key>CFBundleTypeExtensions</key><array><string>txt</string><string>text</string></array>
@@ -25,10 +26,23 @@
       <key>LSItemContentTypes</key><array><string>org.openxmlformats.wordprocessingml.document</string></array>
     </dict>
   </array>
+  <key>UTExportedTypeDeclarations</key><array><dict>
+    <key>UTTypeIdentifier</key><string>com.sidwood.writer-classic.markdown</string>
+    <key>UTTypeDescription</key><string>Markdown</string>
+    <key>UTTypeIconFile</key><string>markdown-document-icon</string>
+    <key>UTTypeConformsTo</key><array><string>net.daringfireball.markdown</string><string>public.plain-text</string></array>
+    <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>md</string><string>markdown</string><string>mmd</string><string>multimarkdown</string><string>mdown</string><string>mkdn</string><string>mkd</string><string>mdwn</string><string>mdtxt</string><string>mdtext</string><string>mdml</string></array></dict>
+  </dict></array>
   <key>UTImportedTypeDeclarations</key><array><dict>
     <key>UTTypeIdentifier</key><string>net.daringfireball.markdown</string>
     <key>UTTypeDescription</key><string>Markdown</string>
+    <key>UTTypeIconFile</key><string>markdown-document-icon</string>
     <key>UTTypeConformsTo</key><array><string>public.plain-text</string></array>
-    <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>md</string><string>markdown</string></array></dict>
+    <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>md</string><string>markdown</string><string>mmd</string><string>multimarkdown</string><string>mdown</string><string>mkdn</string><string>mkd</string><string>mdwn</string><string>mdtxt</string><string>mdtext</string><string>mdml</string></array></dict>
   </dict></array>
+  <key>NSUbiquitousContainers</key><dict><key>iCloud.com.sidwood.writer-classic</key><dict>
+    <key>NSUbiquitousContainerName</key><string>Writer Classic</string>
+    <key>NSUbiquitousContainerIsDocumentScopePublic</key><true/>
+    <key>NSUbiquitousContainerSupportedFolderLevels</key><string>Any</string>
+  </dict></dict>
 </dict></plist>

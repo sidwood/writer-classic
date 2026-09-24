@@ -1,0 +1,5 @@
+width=860.0 icon=351.0..369.0 title=373.0..509.0 window=0.0..860.0 delta=0.00 gap=4.0 hidden=0 titleHidden=1
+width=1280.0 icon=561.0..579.0 title=583.0..719.0 window=0.0..1280.0 delta=0.00 gap=4.0 hidden=0 titleHidden=1
+width=860.0 icon=351.0..369.0 title=373.0..509.0 window=0.0..860.0 delta=0.00 gap=4.0 hidden=0 titleHidden=1
+width=1280.0 icon=561.0..579.0 title=583.0..719.0 window=0.0..1280.0 delta=0.00 gap=4.0 hidden=0 titleHidden=1
+resize width=560.0 icon=-411.0..-393.0 title=-389.0..-69.0 window=-520.0..40.0 delta=0.00 gap=4.0 hidden=0 titleHidden=1

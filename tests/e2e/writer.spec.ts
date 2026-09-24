@@ -140,7 +140,11 @@ test("dark mode persists; sentence focus, statistics, preview and formatting rem
   await expect(popup.locator("strong")).toHaveText(
     "First sentence. Second sentence.",
   );
-  await expect(popup.locator("body")).toHaveClass(/dark/);
+  await expect(popup.locator("html")).toHaveClass(/dark/);
+  await expect(popup.locator("body")).toHaveCSS(
+    "background-color",
+    "rgb(32, 33, 36)",
+  );
   await popup.close();
 });
 

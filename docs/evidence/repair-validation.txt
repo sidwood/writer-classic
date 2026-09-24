@@ -1,0 +1,10 @@
+npm test: 5 passed
+npm run test:e2e: 38 passed
+cargo test --manifest-path src-tauri/Cargo.toml: 14 passed
+npm run tauri -- build --target aarch64-apple-darwin: passed
+python3 scripts/verify-bundle.py: PASS arm64, Classic Markdown extensions, UTI icon, handed-off icon bytes
+qlty check --all: no issues
+security find-identity -v -p codesigning: 0 valid identities
+iCloud container: unavailable (see cargo icloud_container_probe)
+AX inspection of a launched bundle: no children returned; System Events Apple events denied
+Native title geometry: docs/evidence/native-title-geometry.txt

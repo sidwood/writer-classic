@@ -14,17 +14,30 @@ import { getCM, Vim } from "@replit/codemirror-vim";
 export function visualChangeCompatibility(): Extension {
   let changing = false;
   let first = false;
+  let observed: ReturnType<typeof getCM>;
   return [
     Prec.highest(
       EditorView.domEventHandlers({
         keydown(event, view) {
           const cm = getCM(view),
             state = cm?.state.vim;
+          if (cm && observed !== cm) {
+            observed = cm;
+            changing = false;
+            cm.on("vim-mode-change", (event: { mode: string }) => {
+              if (event.mode === "normal") changing = false;
+            });
+          }
+          // Arm only for a real change command. Pending-key arguments such as
+          // Vrc, Vfc and V"cy must reach Vim unchanged. s and C are the visual
+          // change aliases; line mode uses R so the following newline survives.
           if (
-            event.key !== "c" ||
             event.metaKey ||
             event.ctrlKey ||
-            !state?.visualMode
+            event.altKey ||
+            !state?.visualMode ||
+            state.inputState.keyBuffer.length !== 0 ||
+            (event.key !== "c" && event.key !== "s" && event.key !== "C")
           )
             return false;
           changing = true;
@@ -34,9 +47,6 @@ export function visualChangeCompatibility(): Extension {
             return true;
           }
           return false;
-        },
-        keyup(event) {
-          if (event.key === "Escape") changing = false;
         },
         blur() {
           changing = false;

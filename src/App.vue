@@ -9,10 +9,11 @@ import {
   watch,
 } from "vue";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { listen, emitTo } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   WebviewWindow,
+  getCurrentWebviewWindow,
   getAllWebviewWindows,
 } from "@tauri-apps/api/webviewWindow";
 import { open, save } from "@tauri-apps/plugin-dialog";
@@ -22,26 +23,30 @@ import { WriterDocument, statistics } from "./document";
 import { htmlDocument, renderMarkdown } from "./markdown";
 import { exportDocx, exportRtf, importDocx } from "./export";
 import documentIconUrl from "../brand/markdown-document-icon.svg";
-import nativeIconUrl from "../brand/markdown-document-icon.png";
-let headerIcon: number[] | undefined;
+import nativeIconInline from "../brand/markdown-document-icon.png?inline";
+function pngBytes(dataUrl: string) {
+  const binary = atob(dataUrl.split(",")[1] ?? "");
+  return [...binary].map((char) => char.charCodeAt(0));
+}
+const headerIcon = pngBytes(nativeIconInline);
 
 async function updateDocumentHeader() {
-  document.title = doc.title + (doc.dirty ? " — Edited" : "");
+  document.title = doc.title;
   if (!native) return;
-  if (headerIcon)
-    await invoke("set_document_header", {
-      title: doc.title,
-      path: doc.path,
-      edited: doc.dirty,
-      icon: headerIcon,
-    });
-  else await getCurrentWindow().setTitle(doc.title);
+  await invoke("set_document_header", {
+    title: doc.title,
+    path: doc.path,
+    edited: doc.dirty,
+    icon: headerIcon,
+  });
 }
 
 const native = isTauri();
 const label = native ? getCurrentWindow().label : "browser";
 const draftKey = `writer-classic.draft.${label}`;
 const doc = reactive(new WriterDocument());
+const textEncoding = ref(4);
+let lastOpenedText = "";
 const editor = ref<InstanceType<typeof WriterEditor>>();
 const generation = ref(0);
 const selection = ref("");
@@ -59,6 +64,55 @@ const error = ref("");
 const busy = ref(false);
 const pending = ref<null | (() => Promise<void>)>(null);
 const exportDialog = ref(false);
+const cloudDirectory = ref("");
+const cloudFiles = ref<string[]>([]);
+const cloudDialog = ref(false);
+let transitionEpoch = 0;
+let quitting = false;
+async function cloudOperation(operation: "browse" | "open" | "move" | "save") {
+  try {
+    cloudDirectory.value = await invoke<string>("icloud_documents");
+    if (operation === "browse") {
+      cloudFiles.value = await invoke<string[]>("list_icloud");
+      cloudDialog.value = true;
+      return;
+    }
+    if (operation === "open") {
+      const selection = await invoke<{
+        paths: string[];
+        encoding: number;
+      } | null>("choose_text_files", { directory: cloudDirectory.value });
+      if (selection)
+        for (const path of selection.paths)
+          await openPath(path, false, selection.encoding);
+      cloudDialog.value = false;
+      return;
+    }
+    const destination = await save({
+      defaultPath: `${cloudDirectory.value}/${doc.title === "Untitled" ? "Untitled.md" : doc.title}`,
+    });
+    if (!destination) return;
+    if (operation === "move") {
+      if (!doc.path || !(await saveDocument())) return;
+      await invoke("move_to_icloud", { path: doc.path, destination });
+      doc.path = destination;
+    } else {
+      const snapshot = doc.text;
+      await invoke(textEncoding.value === 4 ? "write_text" : "write_encoded", {
+        path: destination,
+        text: snapshot,
+        expected: null,
+        encoding: textEncoding.value,
+      });
+      doc.saved(destination, snapshot);
+    }
+    remember(destination);
+    persistDraft();
+    cloudDialog.value = false;
+  } catch (reason) {
+    showError(reason);
+  }
+}
 const exportType = ref("html");
 const recent = ref<string[]>(
   JSON.parse(localStorage.getItem("writer-classic.recent") ?? "[]"),
@@ -85,6 +139,12 @@ let lastVersion = 0;
 async function browseVersions() {
   if (!doc.path) {
     showError("Save this document before browsing versions.");
+    return;
+  }
+  if (native) {
+    if (doc.dirty && !(await saveDocument())) return;
+    if (doc.dirty) return;
+    await invoke("browse_native_versions", { path: doc.path });
     return;
   }
   versions.value = await invoke<Version[]>("list_versions", { path: doc.path });
@@ -143,6 +203,7 @@ function persistDraft() {
         text: doc.text,
         path: doc.path,
         savedText: doc.savedText,
+        encoding: textEncoding.value,
       }),
     );
     return true;
@@ -155,13 +216,23 @@ function changed(text: string) {
   doc.edit(text);
   chromeHidden.value = true;
   persistDraft();
+  scheduleAutosave();
+}
+function scheduleAutosave() {
   clearTimeout(autosave);
-  if (native && doc.path)
+  if (native && doc.path && doc.dirty && !pending.value)
     autosave = setTimeout(() => {
       void saveDocument(false, true);
     }, 2000);
 }
-function applyDocument(path: string | null, text: string, savedText = text) {
+function applyDocument(
+  path: string | null,
+  text: string,
+  savedText = text,
+  encoding = 4,
+) {
+  textEncoding.value = encoding;
+  lastOpenedText = text;
   clearTimeout(autosave);
   doc.path = path;
   doc.text = text;
@@ -187,7 +258,8 @@ async function saveDocument(
           filters: [{ name: "Plain Text", extensions: ["md", "txt"] }],
         });
       if (!path) return false;
-      await invoke("write_text", {
+      await invoke(textEncoding.value === 4 ? "write_text" : "write_encoded", {
+        encoding: textEncoding.value,
         path,
         text,
         expected: path === doc.path && !saveAs ? doc.savedText : null,
@@ -241,12 +313,25 @@ async function confirmTransition(action: () => Promise<void>) {
 }
 async function resolveTransition(choice: "save" | "discard" | "cancel") {
   const action = pending.value;
+  const epoch = transitionEpoch;
   if (choice === "cancel") {
+    transitionEpoch++;
     pending.value = null;
+    scheduleAutosave();
     editor.value?.focus();
     return;
   }
-  if (choice === "save" && !(await saveDocument())) return;
+  if (choice === "save") {
+    if (!(await saveDocument())) return;
+    if (epoch !== transitionEpoch || pending.value !== action || doc.dirty) {
+      scheduleAutosave();
+      return;
+    }
+  }
+  if (epoch !== transitionEpoch) {
+    scheduleAutosave();
+    return;
+  }
   pending.value = null;
   if (action) await action();
 }
@@ -254,12 +339,13 @@ async function newDocument(
   text = "",
   path: string | null = null,
   savedText = "",
+  encoding = 4,
 ) {
   if (native) {
     const id = `document-${crypto.randomUUID()}`;
     localStorage.setItem(
       `writer-classic.draft.${id}`,
-      JSON.stringify({ text, path, savedText }),
+      JSON.stringify({ text, path, savedText, encoding }),
     );
     new WebviewWindow(id, {
       title: "Untitled",
@@ -270,17 +356,26 @@ async function newDocument(
     });
   } else await confirmTransition(async () => applyDocument(null, text, ""));
 }
-async function openPath(path: string, replace = false) {
+async function openPath(path: string, replace = false, encoding = 4) {
   try {
     const isDocx = path.toLowerCase().endsWith(".docx");
     const text = isDocx
       ? await importDocx(
           new Uint8Array(await invoke<number[]>("read_bytes", { path })),
         )
-      : await invoke<string>("read_text", { path });
+      : await invoke<string>(encoding === 4 ? "read_text" : "read_encoded", {
+          path,
+          encoding,
+        });
     if (native && !replace && (doc.text || doc.path))
-      await newDocument(text, isDocx ? null : path, isDocx ? "" : text);
-    else applyDocument(isDocx ? null : path, text, isDocx ? "" : text);
+      await newDocument(
+        text,
+        isDocx ? null : path,
+        isDocx ? "" : text,
+        encoding,
+      );
+    else
+      applyDocument(isDocx ? null : path, text, isDocx ? "" : text, encoding);
     remember(path);
   } catch (reason) {
     showError(`Could not open document. ${reason}`);
@@ -289,6 +384,16 @@ async function openPath(path: string, replace = false) {
 async function openDocument(importing = false) {
   const pick = async () => {
     if (native) {
+      if (!importing) {
+        const selection = await invoke<{
+          paths: string[];
+          encoding: number;
+        } | null>("choose_text_files");
+        if (selection)
+          for (const path of selection.paths)
+            await openPath(path, false, selection.encoding);
+        return;
+      }
       const path = await open({
         multiple: true,
         directory: false,
@@ -337,14 +442,17 @@ async function closeDocument() {
 function refreshPreview() {
   previewHtml.value = DOMPurify.sanitize(renderMarkdown(doc.text));
   if (nativePreview)
-    void emitTo(nativePreview.label, "preview-update", {
-      html: previewHtml.value,
-      dark: dark.value,
-    });
+    void emitTo(
+      { kind: "WebviewWindow", label: nativePreview.label },
+      "preview-update",
+      {
+        html: previewHtml.value,
+        dark: dark.value,
+      },
+    );
   if (previewWindow && !previewWindow.closed) {
-    previewWindow.document.body.className = dark.value
-      ? "dark preview-body"
-      : "preview-body";
+    previewWindow.document.documentElement.classList.toggle("dark", dark.value);
+    previewWindow.document.body.className = "preview-body";
     previewWindow.document.querySelector("article")!.innerHTML =
       previewHtml.value;
   }
@@ -464,13 +572,33 @@ async function action(command: string) {
         return await moveDocument();
       case "versions":
         return await browseVersions();
+      case "last-opened":
+        return await confirmTransition(async () => changed(lastOpenedText));
+      case "previous-save":
+        if (doc.path) {
+          const older = await invoke<Version[]>("list_versions", {
+            path: doc.path,
+          });
+          const previous = older.find(
+            (version) => version.text !== doc.savedText,
+          );
+          if (previous)
+            await confirmTransition(async () => changed(previous.text));
+        }
+        return;
       case "revert":
         return await confirmTransition(async () => {
-          if (doc.path) await openPath(doc.path, true);
+          if (doc.path) await openPath(doc.path, true, textEncoding.value);
         });
       case "icloud":
-        showError(await invoke<string>("icloud_status"));
-        return;
+      case "icloud-browse":
+        return await cloudOperation("browse");
+      case "icloud-open":
+        return await cloudOperation("open");
+      case "icloud-save":
+        return await cloudOperation("save");
+      case "icloud-move":
+        return await cloudOperation("move");
       case "close":
         return await closeDocument();
       case "quit":
@@ -525,9 +653,10 @@ function shortcuts(event: KeyboardEvent) {
   if (dialog) {
     if (event.key === "Escape") {
       event.preventDefault();
-      pending.value = null;
+      void resolveTransition("cancel");
       exportDialog.value = false;
       recentDialog.value = false;
+      cloudDialog.value = false;
       editor.value?.focus();
     } else if (event.key === "Tab") {
       const controls = [
@@ -543,7 +672,7 @@ function shortcuts(event: KeyboardEvent) {
     } else if (event.metaKey || event.ctrlKey) event.preventDefault();
     return;
   }
-  if (!(event.metaKey || event.ctrlKey)) return;
+  if (!event.metaKey) return;
   const key = event.key.toLowerCase();
   let command: string | undefined;
   if (event.altKey)
@@ -627,7 +756,7 @@ watch(
     previewTimer = setTimeout(refreshPreview, 3000);
   },
 );
-watch([pending, exportDialog, recentDialog], async () => {
+watch([pending, exportDialog, recentDialog, cloudDialog], async () => {
   await nextTick();
   const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
   (
@@ -640,27 +769,39 @@ onMounted(async () => {
     const stored = localStorage.getItem(draftKey);
     if (stored) {
       const draft = JSON.parse(stored);
-      applyDocument(draft.path, draft.text, draft.savedText);
+      applyDocument(
+        draft.path,
+        draft.text,
+        draft.savedText,
+        draft.encoding ?? 4,
+      );
+      if (native && draft.path && draft.text === draft.savedText) {
+        try {
+          const text = await invoke<string>(
+            textEncoding.value === 4 ? "read_text" : "read_encoded",
+            { path: draft.path, encoding: textEncoding.value },
+          );
+          applyDocument(draft.path, text, text, textEncoding.value);
+        } catch (reason) {
+          showError(`Could not refresh recovered document. ${reason}`);
+        }
+      }
+      scheduleAutosave();
     }
     const initialPath = new URLSearchParams(location.search).get("open");
     if (native && initialPath) await openPath(initialPath);
     if (native) {
-      try {
-        const response = await fetch(nativeIconUrl);
-        if (!response.ok)
-          throw new Error("Markdown document icon could not be loaded.");
-        headerIcon = [...new Uint8Array(await response.arrayBuffer())];
-        await updateDocumentHeader();
-      } catch (reason) {
-        showError(reason);
-      }
+      await updateDocumentHeader();
       await invoke("set_vim_checked", { checked: vim.value });
       await invoke("set_recent_files", { paths: recent.value });
       cleanups.push(
-        await listen("quit-request", async () => {
+        await getCurrentWebviewWindow().listen("quit-request", async () => {
+          if (quitting) return;
+          quitting = true;
           clearTimeout(autosave);
           const saved = !doc.path || !doc.dirty || (await saveDocument());
           await invoke("quit_ready", { ready: saved && persistDraft() });
+          quitting = false;
         }),
       );
       cleanups.push(
@@ -703,12 +844,21 @@ onMounted(async () => {
         }
       }
       cleanups.push(
-        await listen<string>("menu-action", (event) => {
-          void action(event.payload);
+        await getCurrentWebviewWindow().listen<string>(
+          "menu-action",
+          (event) => {
+            void action(event.payload);
+          },
+        ),
+      );
+      cleanups.push(
+        await getCurrentWebviewWindow().listen("versions-finished", () => {
+          if (doc.path && !doc.dirty)
+            void openPath(doc.path, true, textEncoding.value);
         }),
       );
       cleanups.push(
-        await listen<string>("open-file", (event) => {
+        await getCurrentWebviewWindow().listen<string>("open-file", (event) => {
           void confirmTransition(() => openPath(event.payload));
         }),
       );
@@ -753,6 +903,31 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <div v-if="cloudDialog" class="modal-backdrop">
+    <section role="dialog" aria-modal="true" aria-label="iCloud documents">
+      <h2>iCloud documents</h2>
+      <p v-if="!cloudFiles.length">No documents in iCloud yet.</p>
+      <button
+        v-for="path in cloudFiles"
+        :key="path"
+        class="recent-path"
+        @click="
+          cloudDialog = false;
+          openPath(path);
+        "
+      >
+        {{ path.split("/").pop() }}
+      </button>
+      <div class="dialog-actions">
+        <button @click="cloudOperation('open')">Open…</button>
+        <button @click="cloudOperation('save')">Save to iCloud…</button>
+        <button :disabled="!doc.path" @click="cloudOperation('move')">
+          Move to iCloud…
+        </button>
+        <button @click="cloudDialog = false">Cancel</button>
+      </div>
+    </section>
+  </div>
   <section
     v-if="versionDialog"
     class="versions-browser"
@@ -808,6 +983,10 @@ onBeforeUnmount(() => {
           ><button @click="action('import')">Import…</button
           ><button @click="action('export')">Export…</button>
           <button @click="action('print')">Print Formatted…</button
+          ><button @click="action('icloud-browse')">Browse iCloud…</button
+          ><button @click="action('icloud-open')">Open from iCloud…</button
+          ><button @click="action('icloud-save')">Save to iCloud…</button
+          ><button @click="action('icloud-move')">Move to iCloud</button
           ><button @click="action('close')">Close <kbd>⌘W</kbd></button>
         </div>
       </details>
@@ -855,9 +1034,7 @@ onBeforeUnmount(() => {
           :src="documentIconUrl"
           alt="Markdown document"
           :draggable="false"
-        /><span class="document-title"
-          >{{ doc.title }}{{ doc.dirty ? " — Edited" : "" }}</span
-        ></span
+        /><span class="document-title">{{ doc.title }}</span></span
       >
     </nav>
     <input ref="fileInput" type="file" hidden @change="browserOpen" />

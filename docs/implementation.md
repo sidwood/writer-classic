@@ -12,21 +12,39 @@ Observed Classic requirements: plain-text UTF-8 Markdown documents; multiple doc
 
 ## Acceptance matrix
 
-| Literal clause                                               | Current-checkout verification                                                                                       | Status                                            |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Reimplement iA Writer Classic exactly                        | Installed 2.1.6 reference; tests below; residual gaps below                                                         | Not established                                   |
-| Using Tauri                                                  | Native arm64 application build succeeds                                                                             | Passed                                            |
-| Using Vue.js                                                 | Typecheck/Vite build and 20 browser scenarios                                                                       | Passed                                            |
-| Works on Apple Silicon                                       | Mach-O arm64 build and native launch observed; controlled desktop scenario interrupted                              | Build passed; full native scenario unverified     |
-| Vim mode                                                     | Real Vim motions/operators/search/Ex save, visual matrix                                                            | Passed tested cases                               |
-| Dark mode                                                    | Toggle/reload/editor/preview tests and screenshot                                                                   | Passed tested cases                               |
-| Goal checkout only                                           | All source/assets/evidence under designated checkout; explicit-path staging                                         | Passed                                            |
-| Missing Vim preference on; explicit off persists             | `tests/e2e/vim.spec.ts` reload/toggle test                                                                          | Passed                                            |
-| v/V/Ctrl-v indicators and y/c/d/undo                         | Nine visual operator cases in `vim.spec.ts`                                                                         | Passed                                            |
-| Checked Vim in Edit, not View, synchronized                  | Browser DOM tests; native bridge toggle/check synchronization; Cocoa CheckMenuItem                                  | Tests passed; live Cocoa inspection unverified    |
-| Centered icon/title; traffic lights; no second native header | Browser geometry at 860/1280px; native bridge verifies PNG bytes and absent browser header; NSWindow document proxy | Browser passed; native visual geometry unverified |
-| Unreadable screenshot; Classic pattern controls              | Native decorated NSWindow retained; no invented title bar                                                           | Implemented                                       |
-| Original icons and Markdown association                      | Owner provenance `brand/ICONS.md`; `scripts/verify-bundle.py` compares bundled bytes and association                | Passed                                            |
+| Literal clause                                               | Current-checkout verification                                                                 | Status                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Reimplement iA Writer Classic exactly                        | Installed 2.1.6 reference; residual gaps below                                                | Not established                                 |
+| Using Tauri                                                  | Native arm64 application build succeeds                                                       | Passed                                          |
+| Using Vue.js                                                 | Typecheck/Vite build and 38 browser scenarios                                                 | Passed                                          |
+| Works on Apple Silicon                                       | Mach-O arm64 bundle verified by `scripts/verify-bundle.py`                                    | Build passed                                    |
+| Vim mode                                                     | Motions/operators/search/Ex save, visual matrix, Ctrl chords stay in the editor              | Passed tested cases                             |
+| Dark mode                                                    | Toggle/reload/editor and preview computed color                                               | Passed tested cases                             |
+| Goal checkout only                                           | All source/assets/evidence under designated checkout                                          | Passed                                          |
+| Missing Vim preference on; explicit off persists             | `tests/e2e/vim.spec.ts`; native checkbox startup sync in `review-routing.spec.ts`            | Passed                                          |
+| v/V/Ctrl-v indicators and y/c/d/undo                         | Indicator effective opacity 1; visual undo including Ctrl-[, Ctrl-c, s, and C                | Passed tested cases                             |
+| Checked Vim in Edit, not View, synchronized                  | Edit checkbox; no-focus restore; persisted-off startup                                        | Passed tested cases; live menu bar unverified   |
+| Centered icon/title; traffic lights; no second native header | Browser 860/1280; AppKit frames in `docs/evidence/native-title-geometry.txt`                 | Passed measured geometry                        |
+| Unreadable screenshot; Classic pattern controls              | Centered proxy plus title, traffic lights left, system title hidden                          | Implemented and measured                        |
+| Original icons and Markdown association                      | Bundled bytes match `brand/`; UTI icon and Classic extensions in the built plist             | Passed                                          |
+
+## Repair findings
+
+| Root cause | Fix | Regression |
+| --- | --- | --- |
+| Cancelled Save-and-Close still destroyed the window | Cancel increments a transition epoch and rechecks dirty state before close | `review-lifecycle.spec.ts` delayed Escape |
+| Cancel left autosave suppressed | Cancel reschedules the named-document timer | Close and Last Opened cancel tests |
+| Clean recovery showed a stale draft | Clean named drafts reload from disk; dirty drafts and read failures are kept | `review-lifecycle.spec.ts`, `review-routing.spec.ts` |
+| Ctrl chords ran Command shortcuts | macOS app shortcuts match Command only; Ctrl+Command+F remains full screen | `review-ui.spec.ts` |
+| Browser preview dark class missed `:root` | Dark class is set on `documentElement`; computed color is asserted | `review-ui.spec.ts`, `writer.spec.ts` |
+| Shorter or different fences closed code | Fence close requires the opening delimiter and at least its length | `tests/review-regressions.test.ts` |
+| Native title left-aligned | Custom centered proxy and title; system title hidden; resize observer | `native-title-geometry.txt`, cargo geometry test |
+| Preview-focused Quit ignored | Quit is independent of focus and waits for each document once | `menu_route` and quit-tracker tests |
+| iCloud was status-only | Browse, encoding-aware open, save, and move-to-container commands | `review-routing.spec.ts`; live container blocked |
+| Versions were a custom timestamp list | `browseDocumentVersions:` plus Last Saved, Previous Save, and Last Opened | Command tests; interactive timeline not driven |
+| Alternate encodings absent | Native Open encoding popup; non-lossy save in the chosen encoding | Rust CP1252/UTF-16 test; e2e wiring test |
+
+Named-review extras covered by the same checks: the Vim indicator stays effectively opaque after edits; the native checkbox follows a persisted-off preference and is restored when no editor accepts the toggle; `document.title` is the document title only, with the dirty dot on the close control; `UTTypeIconFile` is `markdown-document-icon`; menu, quit, and preview events use `emit_to` and the current webview window; visual `c` is not armed while keys are pending, disarms on return to normal, and `s`/`C` share the change undo group.
 
 ## Document states and preservation
 
@@ -36,29 +54,33 @@ Text is raw, not trimmed, normalized, deduplicated or reordered. Empty text, rep
 
 ## Fidelity gaps and constraints
 
-Exact parity remains unverified and is not claimed. Concrete external blockers: `security find-identity -v -p codesigning` found **0 valid identities**; the real `NSFileManager.URLForUbiquityContainerIdentifier(nil)` probe returned no container. The app has no iCloud container entitlement. Opening an existing iCloud Drive path through a dialog is not equivalent to Classic's private container. Licensed Nitti is loaded read-only from installed Classic when available; otherwise Menlo differs visually.
+Exact Classic parity is not established and is not claimed by this repair.
 
-Native screen capture failed with `could not create image from display`. Native windows launched and AX initially exposed the fixture. Later someone outside the agent edited both application windows, including `native-fixture.md`. The agent stopped shared-desktop automation, did not send further keys, and did not terminate either process. `native-open-ax.txt` and the fixture are uncontrolled evidence, not a deterministic edit/save/reopen test. Native header geometry, text-service action results, print/PDF, full screen, native preview and multi-window recovery require controlled follow-up.
+Blocked or remaining exact-parity obligations:
 
-Known remaining implementation/fidelity gaps (not external blockers): versions use real NSFileVersion storage but a custom browser, not Apple's Time Machine-like NSDocument browser; macOS Quick Look extension and native document locking are absent; find/replace uses CodeMirror rather than every Classic native pattern option; statistics use a 210-wpm estimate and whitespace word segmentation rather than a measured Classic oracle; exact format-bar active states, line width, typography and animation timings are not proven equivalent. DOCX/RTF conversion covers tested formatting but not a comprehensive Classic conversion corpus. Cocoa spelling/substitution routing and system completion are implemented, but full dictionary/dictation/services equivalence is not established. No claim that these gaps are approved scope reductions.
+- Quick Look: Classic ships `Contents/Library/QuickLook/iA Writer.qlgenerator`. This bundle does not.
+- Help: Classic has a help book and Help ▸ Writer Help. This menu bar has no Help menu.
+- AppleScript: Classic sets `NSAppleScriptEnabled` and `OSAScriptingDefinition`. This app has neither.
+- Nitti: proprietary. It is loaded read-only from an installed Classic at runtime and is not redistributed. Without that install, the face falls back to Menlo. No licensing authority was available to bundle it.
+- iCloud signing: `security find-identity -v -p codesigning` found 0 valid identities. The ubiquity probe returns no container. `src-tauri/Entitlements.icloud.plist` and `src-tauri/tauri.icloud.conf.json` are opt-in so an unsigned default build is not killed for an ungrantable entitlement. The browse/open/save/move workflow is implemented; live container verification is blocked until Sid provides a signing identity and container.
+- Still absent versus Classic's menu: Window ▸ Bring All to Front, Edit ▸ Delete, and Substitutions ▸ Smart Copy/Paste, Smart Links, and Data Detection.
+- The interactive NSDocument version timeline was not driven in this session, so title-bar timeline visuals are unverified. The File command calls `browseDocumentVersions:`, and Last Saved / Previous Save / Last Opened have tested semantics. Accessibility inspection of a launched bundle was not authorized (`AX` returned no children; System Events Apple events were denied).
+- Find/replace, statistics, format-bar active states, line width, typography, animation timing, and the DOCX/RTF corpus are still not proven equivalent to Classic. Duplicate `fileAssociations` in `tauri.conf.json` is inert while `Info.plist` is the association source; it was left in place.
 
 ## Validation evidence
 
-- `npm test`: 4 unit tests passed (raw document state and Classic Markdown paragraph/list/footnote/security behavior).
-- `npm run test:e2e`: 20 Chromium scenarios passed, including raw BOM/CRLF/Unicode/empty files, draft transitions/modal typing guard, actual Vim visual operations, title geometry, native bridge save failure/cancel, dark mode, preview, find/replace, HTML/RTF/DOCX conversion.
-- `cargo test --manifest-path src-tauri/Cargo.toml`: 6 native Rust tests passed; actual versions survive atomic replacement, move refuses overwrite, symlinks remain aliases, text round trips and external conflicts are preserved. iCloud probe reports unavailable (not cloud parity success).
-- `npm run build` and `npm run tauri -- build --target aarch64-apple-darwin`: passed; build log in `evidence/build.log`. Vite reports a large bundle warning.
-- `python3 scripts/verify-bundle.py`: passed arm64 executable, Markdown file association, handed-off document/app icon byte checks.
-- `plutil -lint src-tauri/Info.plist`: passed.
-- `qlty config validate`, `qlty check --all`: passed after formatting. Rustfmt pinned to Qlty's available 1.77.2 runtime; default 1.82.0 runtime check failed before configuration correction.
-- Impeccable detector: `evidence/design-detector.json` contains no findings. Visual evidence: `browser-light.png`, `browser-dark.png`, `browser-visual-block.yaml`; browser fallback only.
-- `npm audit`: zero vulnerabilities after updating Vitest. Node 26 emits an experimental localStorage warning while importing the DOCX test library; tests pass.
+- `npm test`: 5 unit tests passed, including mixed-delimiter and shorter-fence Markdown.
+- `npm run test:e2e`: 38 Chromium scenarios passed, including cancelled close, resumed autosave, recovery, Ctrl chords, computed preview color, window-scoped listeners, encoding/iCloud/version command wiring, and visual-change undo.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: 14 tests passed. Native title frames are centered at 860 and 1280 and after resize (`docs/evidence/native-title-geometry.txt`, delta 0.00, icon immediately left of the title, system title hidden). Versions survive atomic replacement. CP1252 and UTF-16 round-trip without loss. iCloud probe reports unavailable.
+- `npm run build` and `npm run tauri -- build --target aarch64-apple-darwin`: passed. Vite reports a large bundle warning.
+- `python3 scripts/verify-bundle.py`: passed arm64 executable, Classic Markdown extensions, UTI icon, and handed-off icon bytes.
+- `qlty check --all`: passed after formatting.
 
-The latest browser fixture demonstrates VISUAL BLOCK and the centered icon/title in both themes. The asset owner relinquished brand/icons ownership explicitly; original handoff assets are included without regeneration.
+The asset owner relinquished brand/icons ownership explicitly; original handoff assets are included without regeneration.
 
 ## Deferred
 
-No new product features were added to the contract. Large-bundle optimization is deferred. The fidelity gaps above remain unmet/unverified contract work, not an approved deferred feature list.
+No new product features were added to the contract. Large-bundle optimization is deferred. The fidelity gaps above remain unmet or blocked contract work, not an approved scope reduction.
 
 ## Contract amendments received
 

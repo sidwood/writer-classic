@@ -37,12 +37,25 @@ parser.core.ruler.before("inline", "classic_paragraphs", (state) => {
 });
 
 export function renderMarkdown(source: string) {
-  let fenced = false;
+  let fence: { delimiter: string; length: number } | null = null;
   const prepared = source
     .split("\n")
     .map((line) => {
-      if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
-      if (fenced) return line;
+      const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if (fence) {
+        if (
+          marker &&
+          marker[1][0] === fence.delimiter &&
+          marker[1].length >= fence.length &&
+          /^\s*$/.test(marker[2])
+        )
+          fence = null;
+        return line;
+      }
+      if (marker && (marker[1][0] !== "`" || !marker[2].includes("`"))) {
+        fence = { delimiter: marker[1][0], length: marker[1].length };
+        return line;
+      }
       const bullet = line.match(/^(\*{2,}) (.*)$/);
       if (bullet) return `${"  ".repeat(bullet[1].length - 1)}* ${bullet[2]}`;
       const ordered = line.match(/^(\d+(?:\.\d+)+)\. (.*)$/);

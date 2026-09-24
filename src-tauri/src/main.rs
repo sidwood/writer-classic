@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fs, io::Write, path::Path};
+use std::{fs, io::Write, path::Path, sync::Mutex};
 use tauri::{Emitter, Manager};
+mod encoding;
 mod lifecycle;
 mod macos;
 
@@ -72,8 +73,19 @@ fn classic_font(weight: String) -> Result<Vec<u8>, String> {
     .map_err(|e| e.to_string())
 }
 
+fn vim_preference(app: &tauri::AppHandle) -> bool {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .and_then(|p| fs::read_to_string(p.join("vim.json")).ok())
+        .and_then(|text| serde_json::from_str::<bool>(&text).ok())
+        .unwrap_or(true)
+}
 #[tauri::command]
 fn set_vim_checked(app: tauri::AppHandle, checked: bool) -> Result<(), String> {
+    let directory = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    atomic_write(&directory.join("vim.json"), checked.to_string().as_bytes())?;
     let menu = app.menu().ok_or("Application menu is unavailable")?;
     for item in menu.items().map_err(|e| e.to_string())? {
         if let Some(item) = item.as_submenu().and_then(|menu| menu.get("vim")) {
@@ -131,6 +143,72 @@ fn set_recent_files(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), Str
     Ok(())
 }
 
+static TITLE_APP: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
+
+extern "C" fn title_menu_action(window: *mut std::ffi::c_void, command: *const std::ffi::c_char) {
+    let Some(app) = TITLE_APP.lock().ok().and_then(|guard| guard.clone()) else {
+        return;
+    };
+    let Ok(command) = (unsafe { std::ffi::CStr::from_ptr(command) }).to_str() else {
+        return;
+    };
+    let windows = app.webview_windows();
+    if let Some(target) = windows
+        .values()
+        .find(|candidate| candidate.ns_window().ok() == Some(window))
+    {
+        let _ = target.emit_to(
+            tauri::EventTarget::webview_window(target.label()),
+            "menu-action",
+            command,
+        );
+    }
+}
+
+fn install_title_menu(app: &tauri::AppHandle) {
+    if let Ok(mut guard) = TITLE_APP.lock() {
+        *guard = Some(app.clone());
+    }
+    unsafe extern "C" {
+        fn classic_set_menu_action(
+            handler: extern "C" fn(*mut std::ffi::c_void, *const std::ffi::c_char),
+        );
+    }
+    unsafe { classic_set_menu_action(title_menu_action) }
+}
+#[derive(Debug, PartialEq, Eq)]
+enum MenuRoute<'a> {
+    QuitAll,
+    RestoreVim,
+    Document(&'a str),
+    Drop,
+}
+
+fn menu_route<'a>(command: &str, focused: Option<&'a str>, labels: &[&'a str]) -> MenuRoute<'a> {
+    if command == "quit" {
+        return MenuRoute::QuitAll;
+    }
+    let Some(focused) = focused else {
+        return if command == "vim" {
+            MenuRoute::RestoreVim
+        } else {
+            MenuRoute::Drop
+        };
+    };
+    if let Some(owner) = focused.strip_prefix("preview-") {
+        return if labels.contains(&owner) {
+            MenuRoute::Document(owner)
+        } else {
+            MenuRoute::Drop
+        };
+    }
+    if labels.contains(&focused) {
+        MenuRoute::Document(focused)
+    } else {
+        MenuRoute::Drop
+    }
+}
+
 fn menu(app: &tauri::App) -> tauri::Result<()> {
     use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
     let root = Menu::new(app)?;
@@ -170,12 +248,23 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     for (id, text) in [
         ("rename", "Rename…"),
         ("move", "Move To…"),
-        ("revert", "Revert to Saved…"),
+        ("revert", "Last Saved"),
         ("versions", "Browse All Versions…"),
-        ("icloud", "iCloud…"),
+        ("previous-save", "Previous Save"),
+        ("last-opened", "Last Opened"),
     ] {
         file.append(&MenuItem::with_id(app, id, text, true, None::<&str>)?)?;
     }
+    let icloud = Submenu::with_id(app, "icloud", "iCloud", true)?;
+    for (id, text) in [
+        ("icloud-browse", "Browse iCloud…"),
+        ("icloud-open", "Open from iCloud…"),
+        ("icloud-save", "Save to iCloud…"),
+        ("icloud-move", "Move to iCloud"),
+    ] {
+        icloud.append(&MenuItem::with_id(app, id, text, true, None::<&str>)?)?;
+    }
+    file.append(&icloud)?;
     root.append(&file)?;
     let edit = Submenu::new(app, "Edit", true)?;
     for (id, text, key) in [
@@ -236,7 +325,7 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         "vim",
         "Vim Mode",
         true,
-        true,
+        vim_preference(app.handle()),
         Some("CmdOrCtrl+Alt+V"),
     )?)?;
     root.append(&edit)?;
@@ -280,12 +369,31 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     root.append(&window)?;
     app.set_menu(root)?;
     app.on_menu_event(|app, event| {
-        if let Some(window) = app
-            .webview_windows()
+        let command = event.id().as_ref();
+        let windows = app.webview_windows();
+        let labels: Vec<String> = windows.keys().cloned().collect();
+        let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+        let focused = windows
             .values()
-            .find(|w| w.is_focused().unwrap_or(false))
-        {
-            let _ = window.emit("menu-action", event.id().as_ref());
+            .find(|window| window.is_focused().unwrap_or(false))
+            .map(|window| window.label().to_string());
+        match menu_route(command, focused.as_deref(), &label_refs) {
+            MenuRoute::QuitAll => {
+                let _ = lifecycle::request_quit(app.clone(), app.state());
+            }
+            MenuRoute::RestoreVim => {
+                let _ = set_vim_checked(app.clone(), vim_preference(app));
+            }
+            MenuRoute::Document(label) => {
+                if let Some(window) = windows.get(label) {
+                    let _ = window.emit_to(
+                        tauri::EventTarget::webview_window(label),
+                        "menu-action",
+                        command,
+                    );
+                }
+            }
+            MenuRoute::Drop => {}
         }
     });
     Ok(())
@@ -305,6 +413,7 @@ fn open_window(app: &tauri::AppHandle, path: Option<&Path>) -> tauri::Result<()>
         ("main".to_string(), "index.html".to_string())
     };
     tauri::WebviewWindowBuilder::new(app, label, tauri::WebviewUrl::App(address.into()))
+        .visible(false)
         .title("Untitled")
         .inner_size(860.0, 640.0)
         .min_inner_size(560.0, 320.0)
@@ -314,8 +423,25 @@ fn open_window(app: &tauri::AppHandle, path: Option<&Path>) -> tauri::Result<()>
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .on_page_load(|webview, _payload| {
+            let window = webview.window();
+            if !window.label().starts_with("preview-") {
+                let title = window.title().unwrap_or_else(|_| "Untitled".into());
+                let _ = macos::set_document_header(
+                    window,
+                    title,
+                    None,
+                    false,
+                    include_bytes!("../../brand/markdown-document-icon.png").to_vec(),
+                );
+                let _ = webview.window().show();
+            }
+        })
         .manage(lifecycle::QuitState::default())
         .invoke_handler(tauri::generate_handler![
+            encoding::read_encoded,
+            encoding::write_encoded,
+            encoding::choose_text_files,
             read_text,
             read_bytes,
             write_text,
@@ -325,6 +451,7 @@ fn main() {
             set_recent_files,
             lifecycle::request_quit,
             lifecycle::quit_ready,
+            macos::browse_native_versions,
             macos::text_service,
             macos::set_document_header,
             macos::list_versions,
@@ -332,9 +459,13 @@ fn main() {
             macos::remove_version,
             macos::move_document,
             macos::complete_word,
+            macos::icloud_documents,
+            macos::list_icloud,
+            macos::move_to_icloud,
             macos::icloud_status
         ])
         .setup(|app| {
+            install_title_menu(app.handle());
             menu(app)?;
             let paths: Vec<_> = std::env::args()
                 .skip(1)
@@ -407,5 +538,39 @@ mod tests {
             .file_type()
             .is_symlink());
         assert_eq!(fs::read_to_string(&target).unwrap(), "after");
+    }
+    #[test]
+    fn menu_commands_stay_on_one_document_and_quit_ignores_preview_focus() {
+        let labels = ["main", "document-2", "preview-main"];
+        assert_eq!(
+            menu_route("quit", Some("preview-main"), &labels),
+            MenuRoute::QuitAll
+        );
+        assert_eq!(
+            menu_route("bold", Some("preview-main"), &labels),
+            MenuRoute::Document("main")
+        );
+        assert_eq!(
+            menu_route("close", Some("document-2"), &labels),
+            MenuRoute::Document("document-2")
+        );
+        assert_eq!(menu_route("bold", None, &labels), MenuRoute::Drop);
+        assert_eq!(menu_route("vim", None, &labels), MenuRoute::RestoreVim);
+        assert_eq!(
+            menu_route("vim", Some("preview-missing"), &labels),
+            MenuRoute::Drop
+        );
+    }
+    #[test]
+    fn markdown_association_declares_the_icon_and_classic_extensions() {
+        let plist = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Info.plist")).unwrap();
+        assert!(plist.contains("<key>UTTypeIconFile</key><string>markdown-document-icon</string>"));
+        assert!(plist.contains("com.sidwood.writer-classic.markdown"));
+        assert!(!plist.contains("<key>CFBundleTypeName</key><string>Markdown</string>\n      <key>NSDocumentClass</key><string>ClassicHistoryDocument</string>\n      <key>CFBundleTypeRole</key><string>Editor</string>\n      <key>CFBundleTypeIconFile</key><string>markdown-document-icon.icns</string>\n      <key>LSHandlerRank</key>"));
+        for ext in [
+            "mdml", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "mmd",
+        ] {
+            assert!(plist.contains(&format!("<string>{ext}</string>")), "{ext}");
+        }
     }
 }
