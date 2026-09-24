@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleExecutable</key><string>WriterClassicPreview</string>
+  <key>CFBundleIdentifier</key><string>com.sidwood.writer-classic.preview</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>Writer Classic Preview</string>
+  <key>CFBundlePackageType</key><string>XPC!</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleSupportedPlatforms</key><array><string>MacOSX</string></array>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>NSExtension</key><dict>
+    <key>NSExtensionPointIdentifier</key><string>com.apple.quicklook.preview</string>
+    <key>NSExtensionPrincipalClass</key><string>WriterPreviewProvider</string>
+    <key>NSExtensionAttributes</key><dict>
+      <key>QLIsDataBasedPreview</key><true/>
+      <key>QLSupportsSearchableItems</key><false/>
+      <key>QLSupportedContentTypes</key><array>
+        <string>com.sidwood.writer-classic.markdown</string>
+        <string>net.daringfireball.markdown</string>
+        <string>public.plain-text</string>
+        <string>public.utf8-plain-text</string>
+        <string>public.utf16-plain-text</string>
+        <string>public.text</string>
+      </array>
+    </dict>
+  </dict>
+</dict></plist>

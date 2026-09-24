@@ -273,6 +273,93 @@ pub fn set_document_header(
     Ok(())
 }
 
+#[tauri::command]
+pub fn open_help() -> Result<(), String> {
+    unsafe extern "C" {
+        fn classic_open_help() -> *mut std::ffi::c_char;
+        fn free(pointer: *mut std::ffi::c_void);
+    }
+    let error = unsafe { classic_open_help() };
+    if error.is_null() {
+        Ok(())
+    } else {
+        let message = unsafe { std::ffi::CStr::from_ptr(error) }
+            .to_string_lossy()
+            .into_owned();
+        unsafe { free(error.cast()) }
+        Err(message)
+    }
+}
+
+#[tauri::command]
+pub fn detect_data(
+    text: String,
+    links: bool,
+    data: bool,
+) -> Result<Vec<serde_json::Value>, String> {
+    let text = std::ffi::CString::new(text).map_err(|e| e.to_string())?;
+    unsafe extern "C" {
+        fn classic_detect_data(
+            text: *const std::ffi::c_char,
+            links: i32,
+            data: i32,
+        ) -> *mut std::ffi::c_char;
+        fn free(pointer: *mut std::ffi::c_void);
+    }
+    let raw = unsafe { classic_detect_data(text.as_ptr(), i32::from(links), i32::from(data)) };
+    if raw.is_null() {
+        return Ok(Vec::new());
+    }
+    let json = unsafe { std::ffi::CStr::from_ptr(raw) }
+        .to_string_lossy()
+        .into_owned();
+    unsafe { free(raw.cast()) }
+    serde_json::from_str(&json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn script_note_document(
+    window: tauri::Window,
+    title: String,
+    path: String,
+    text: String,
+) -> Result<(), String> {
+    let label = std::ffi::CString::new(window.label()).map_err(|e| e.to_string())?;
+    let title = std::ffi::CString::new(title).map_err(|e| e.to_string())?;
+    let path = std::ffi::CString::new(path).map_err(|e| e.to_string())?;
+    let text = std::ffi::CString::new(text).map_err(|e| e.to_string())?;
+    let pointer = window.ns_window().map_err(|e| e.to_string())?;
+    unsafe extern "C" {
+        fn classic_note_document(
+            label: *const std::ffi::c_char,
+            title: *const std::ffi::c_char,
+            path: *const std::ffi::c_char,
+            text: *const std::ffi::c_char,
+            window: *mut std::ffi::c_void,
+        );
+    }
+    unsafe {
+        classic_note_document(
+            label.as_ptr(),
+            title.as_ptr(),
+            path.as_ptr(),
+            text.as_ptr(),
+            pointer,
+        );
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn script_forget_document(window: tauri::Window) -> Result<(), String> {
+    let label = std::ffi::CString::new(window.label()).map_err(|e| e.to_string())?;
+    unsafe extern "C" {
+        fn classic_forget_document(label: *const std::ffi::c_char);
+    }
+    unsafe { classic_forget_document(label.as_ptr()) }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

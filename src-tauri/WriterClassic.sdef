@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<dictionary>
+  <suite name="Writer Classic Suite" code="WrCl" description="Writer Classic documents.">
+    <command name="open" code="aevtodoc" description="Open a file.">
+      <cocoa class="ClassicOpenCommand"/>
+      <direct-parameter description="The file to open." type="file"/>
+    </command>
+    <class name="application" code="capp" description="The Writer Classic application.">
+      <cocoa class="NSApplication"/>
+      <element type="document">
+        <cocoa key="classicOrderedDocuments"/>
+      </element>
+      <property name="front document" code="frnt" type="document" access="r" description="The front document.">
+        <cocoa key="classicFrontDocument"/>
+      </property>
+    </class>
+    <class name="document" code="docu" description="An open document." plural="documents">
+      <cocoa class="ClassicScriptDocument"/>
+      <property name="text" code="ctxt" type="text" access="rw" description="The text of the document.">
+        <cocoa key="text"/>
+      </property>
+      <property name="name" code="pnam" type="text" access="r" description="The document name.">
+        <cocoa key="name"/>
+      </property>
+      <property name="path" code="ppth" type="text" access="r" description="The document path, if it has one.">
+        <cocoa key="filePath"/>
+      </property>
+    </class>
+  </suite>
+</dictionary>

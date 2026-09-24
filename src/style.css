@@ -181,6 +181,19 @@ kbd {
   filter: blur(0.8px);
   opacity: 0.85;
 }
+.detected-link,
+.detected-phone,
+.detected-date,
+.detected-address {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.detected-date,
+.detected-address,
+.detected-phone {
+  text-decoration-style: dotted;
+}
 .cm-panels {
   background: var(--chrome) !important;
   color: var(--text) !important;

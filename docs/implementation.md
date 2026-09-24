@@ -58,23 +58,19 @@ Exact Classic parity is not established and is not claimed by this repair.
 
 Blocked or remaining exact-parity obligations:
 
-- Quick Look: Classic ships `Contents/Library/QuickLook/iA Writer.qlgenerator`. This bundle does not.
-- Help: Classic has a help book and Help ▸ Writer Help. This menu bar has no Help menu.
-- AppleScript: Classic sets `NSAppleScriptEnabled` and `OSAScriptingDefinition`. This app has neither.
 - Nitti: proprietary. It is loaded read-only from an installed Classic at runtime and is not redistributed. Without that install, the face falls back to Menlo. No licensing authority was available to bundle it.
-- iCloud signing: `security find-identity -v -p codesigning` found 0 valid identities. The ubiquity probe returns no container. `src-tauri/Entitlements.icloud.plist` and `src-tauri/tauri.icloud.conf.json` are opt-in so an unsigned default build is not killed for an ungrantable entitlement. The browse/open/save/move workflow is implemented; live container verification is blocked until Sid provides a signing identity and container.
-- Still absent versus Classic's menu: Window ▸ Bring All to Front, Edit ▸ Delete, and Substitutions ▸ Smart Copy/Paste, Smart Links, and Data Detection.
+- iCloud signing: `security find-identity -v -p codesigning` found 0 valid identities. The ubiquity probe returns no container. `src-tauri/Entitlements.icloud.plist` and `src-tauri/tauri.icloud.conf.json` are opt-in so an unsigned default build is not killed for an ungrantable entitlement. The browse/open/save/move workflow is implemented; live container verification is blocked until Sid provides a signing identity and container. This commit does not claim iCloud live signing.
+- Quick Look, Help, AppleScript, and the previously missing Classic menu items are implemented in this checkout. They do not establish exact Classic parity. `qlmanage -g` on this Mac (macOS 26) reports "Can't get generator" for this generator and for Classic's own x86_64 generator; the installed generator is loaded in-process and its preview HTML is tested. Live `osascript` from this runner is denied by TCC (`-1743`). The scripting handlers and sdef are tested in-process.
 - The interactive NSDocument version timeline was not driven in this session, so title-bar timeline visuals are unverified. The File command calls `browseDocumentVersions:`, and Last Saved / Previous Save / Last Opened have tested semantics. Accessibility inspection of a launched bundle was not authorized (`AX` returned no children; System Events Apple events were denied).
 - Find/replace, statistics, format-bar active states, line width, typography, animation timing, and the DOCX/RTF corpus are still not proven equivalent to Classic. Duplicate `fileAssociations` in `tauri.conf.json` is inert while `Info.plist` is the association source; it was left in place.
 
 ## Validation evidence
 
-- `npm test`: 5 unit tests passed, including mixed-delimiter and shorter-fence Markdown.
-- `npm run test:e2e`: 38 Chromium scenarios passed, including cancelled close, resumed autosave, recovery, Ctrl chords, computed preview color, window-scoped listeners, encoding/iCloud/version command wiring, and visual-change undo.
-- `cargo test --manifest-path src-tauri/Cargo.toml`: 14 tests passed. Native title frames are centered at 860 and 1280 and after resize (`docs/evidence/native-title-geometry.txt`, delta 0.00, icon immediately left of the title, system title hidden). Versions survive atomic replacement. CP1252 and UTF-16 round-trip without loss. iCloud probe reports unavailable.
+- `npm test`: 7 unit tests passed, including mixed-delimiter fences and smart copy/paste plus data detection.
+- `npm run test:e2e`: 39 Chromium scenarios passed, including delete, smart paste, detections, and the Help menu.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: 19 tests passed. Native title frames stay centered. The Quick Look generator loads and previews markdown and text. The help book indexes. AppleScript get, set, and open round-trip in-process. Bring All to Front keeps both windows visible in order.
 - `npm run build` and `npm run tauri -- build --target aarch64-apple-darwin`: passed. Vite reports a large bundle warning.
-- `python3 scripts/verify-bundle.py`: passed arm64 executable, Classic Markdown extensions, UTI icon, and handed-off icon bytes.
-- `qlty check --all`: passed after formatting.
+- `python3 scripts/verify-bundle.py`: passed arm64 executable, Classic Markdown extensions, UTI icon, handed-off icon bytes, Quick Look generator, help book, and AppleScript definition.
 
 The asset owner relinquished brand/icons ownership explicitly; original handoff assets are included without regeneration.
 
@@ -93,3 +89,11 @@ Contract amendment. Authoritative. Supersedes the earlier Vim menu placement and
 - The attached 20:32 screenshot could not be read from this session (macOS privacy on TemporaryItems). Match the Classic title-bar pattern above. Do not invent a left-aligned app title.
 - Write only in /Users/sidwood/code/ia-writer-classic-clone.goal.
 - Do not copy proprietary iA Writer icon bytes. An Opus 5.5 agent now owns src-tauri/icons and brand/markdown-document-icon.\*. Do not regenerate those files. Wire the markdown document icon into the title-bar proxy and the markdown file association.
+
+Later Sid requirements, also authoritative:
+
+- Focus mode dims and blurs every sentence except the one at the caret. The caret sentence stays sharp and full contrast. Do not blur the whole editor. The rule is in `src/style.css` `.unfocused-sentence`.
+- The browser header shows `doc.title` only. No ` — Edited` suffix. Dirty state is the close-button dot.
+- The full Opus review at `/tmp/ia-writer-reviews/opus.md` is an acceptance gate. A commit is not finished while a non-signing finding from that report is unimplemented.
+- Task `task-1-0-96` owns the previously open items: a Quick Look generator for markdown and text, a Help menu and help book, an AppleScript definition for getting and setting the front document text and opening a file, and Window ▸ Bring All to Front, Edit ▸ Delete, Substitutions ▸ Smart Copy/Paste, Smart Links, and Data Detection. Implementing those items does not prove the rest of Classic parity.
+- Do not copy Nitti. iCloud live signing remains blocked while no signing identity exists. Leave the opt-in entitlement as it is.

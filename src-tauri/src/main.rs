@@ -97,6 +97,62 @@ fn set_vim_checked(app: tauri::AppHandle, checked: bool) -> Result<(), String> {
     Err("Vim menu item is unavailable".into())
 }
 
+fn substitution_flags(app: &tauri::AppHandle) -> std::collections::HashMap<String, bool> {
+    let mut flags = std::collections::HashMap::from([
+        ("smart-copy-paste".to_string(), true),
+        ("smart-links".to_string(), true),
+        ("data-detection".to_string(), true),
+    ]);
+    let Ok(directory) = app.path().app_config_dir() else {
+        return flags;
+    };
+    if let Some(saved) = fs::read_to_string(directory.join("substitutions.json"))
+        .ok()
+        .and_then(|text| {
+            serde_json::from_str::<std::collections::HashMap<String, bool>>(&text).ok()
+        })
+    {
+        flags.extend(saved);
+    }
+    flags
+}
+
+fn set_checked(item: &tauri::menu::MenuItemKind<tauri::Wry>, id: &str, checked: bool) -> bool {
+    if item.id().as_ref() == id {
+        if let Some(item) = item.as_check_menuitem() {
+            return item.set_checked(checked).is_ok();
+        }
+    }
+    item.as_submenu()
+        .and_then(|menu| menu.items().ok())
+        .is_some_and(|items| items.iter().any(|child| set_checked(child, id, checked)))
+}
+
+#[tauri::command]
+fn set_menu_checked(app: tauri::AppHandle, id: String, checked: bool) -> Result<(), String> {
+    let directory = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
+    let mut flags = substitution_flags(&app);
+    flags.insert(id.clone(), checked);
+    atomic_write(
+        &directory.join("substitutions.json"),
+        serde_json::to_string(&flags)
+            .map_err(|e| e.to_string())?
+            .as_bytes(),
+    )?;
+    let menu = app.menu().ok_or("Application menu is unavailable")?;
+    if menu
+        .items()
+        .map_err(|e| e.to_string())?
+        .iter()
+        .any(|item| set_checked(item, &id, checked))
+    {
+        Ok(())
+    } else {
+        Err(format!("{id} menu item is unavailable"))
+    }
+}
+
 #[tauri::command]
 fn set_recent_files(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), String> {
     use tauri::menu::MenuItem;
@@ -176,9 +232,55 @@ fn install_title_menu(app: &tauri::AppHandle) {
     }
     unsafe { classic_set_menu_action(title_menu_action) }
 }
+
+static SCRIPT_APP: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
+
+extern "C" fn script_open_file(path: *const std::ffi::c_char) {
+    let Some(app) = SCRIPT_APP.lock().ok().and_then(|guard| guard.clone()) else {
+        return;
+    };
+    let path = unsafe { std::ffi::CStr::from_ptr(path) }
+        .to_string_lossy()
+        .into_owned();
+    let _ = open_window(&app, Some(Path::new(&path)));
+}
+
+extern "C" fn script_set_text(label: *const std::ffi::c_char, text: *const std::ffi::c_char) {
+    let Some(app) = SCRIPT_APP.lock().ok().and_then(|guard| guard.clone()) else {
+        return;
+    };
+    let label = unsafe { std::ffi::CStr::from_ptr(label) }
+        .to_string_lossy()
+        .into_owned();
+    let text = unsafe { std::ffi::CStr::from_ptr(text) }
+        .to_string_lossy()
+        .into_owned();
+    if let Some(window) = app.get_webview_window(&label) {
+        let _ = window.emit_to(
+            tauri::EventTarget::webview_window(&label),
+            "script-set-text",
+            text,
+        );
+    }
+}
+
+fn install_scripting(app: &tauri::AppHandle) {
+    if let Ok(mut guard) = SCRIPT_APP.lock() {
+        *guard = Some(app.clone());
+    }
+    unsafe extern "C" {
+        fn classic_install_scripting(
+            open_file: extern "C" fn(*const std::ffi::c_char),
+            set_text: extern "C" fn(*const std::ffi::c_char, *const std::ffi::c_char),
+        );
+    }
+    unsafe { classic_install_scripting(script_open_file, script_set_text) }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum MenuRoute<'a> {
     QuitAll,
+    Help,
     RestoreVim,
     Document(&'a str),
     Drop,
@@ -187,6 +289,9 @@ enum MenuRoute<'a> {
 fn menu_route<'a>(command: &str, focused: Option<&'a str>, labels: &[&'a str]) -> MenuRoute<'a> {
     if command == "quit" {
         return MenuRoute::QuitAll;
+    }
+    if command == "help" {
+        return MenuRoute::Help;
     }
     let Some(focused) = focused else {
         return if command == "vim" {
@@ -276,6 +381,13 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     edit.append(&PredefinedMenuItem::cut(app, None)?)?;
     edit.append(&PredefinedMenuItem::copy(app, None)?)?;
     edit.append(&PredefinedMenuItem::paste(app, None)?)?;
+    edit.append(&MenuItem::with_id(
+        app,
+        "delete",
+        "Delete",
+        true,
+        None::<&str>,
+    )?)?;
     edit.append(&PredefinedMenuItem::select_all(app, None)?)?;
     for (id, text, key) in [
         ("copy-html", "Copy HTML", "CmdOrCtrl+Alt+C"),
@@ -304,12 +416,26 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         )?)?;
     }
     edit.append(&spelling)?;
-    let substitutions = Submenu::new(app, "Substitutions", true)?;
+    let substitutions = Submenu::with_id(app, "substitutions", "Substitutions", true)?;
+    let flags = substitution_flags(app.handle());
+    substitutions.append(&MenuItem::with_id(
+        app,
+        "service-substitutions",
+        "Show Substitutions",
+        true,
+        None::<&str>,
+    )?)?;
+    substitutions.append(&CheckMenuItem::with_id(
+        app,
+        "smart-copy-paste",
+        "Smart Copy/Paste",
+        true,
+        *flags.get("smart-copy-paste").unwrap_or(&true),
+        None::<&str>,
+    )?)?;
     for (id, title) in [
-        ("substitutions", "Show Substitutions"),
         ("smart-quotes", "Smart Quotes"),
         ("smart-dashes", "Smart Dashes"),
-        ("replacement", "Text Replacement"),
     ] {
         substitutions.append(&MenuItem::with_id(
             app,
@@ -319,6 +445,29 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
             None::<&str>,
         )?)?;
     }
+    substitutions.append(&CheckMenuItem::with_id(
+        app,
+        "smart-links",
+        "Smart Links",
+        true,
+        *flags.get("smart-links").unwrap_or(&true),
+        None::<&str>,
+    )?)?;
+    substitutions.append(&CheckMenuItem::with_id(
+        app,
+        "data-detection",
+        "Data Detection",
+        true,
+        *flags.get("data-detection").unwrap_or(&true),
+        None::<&str>,
+    )?)?;
+    substitutions.append(&MenuItem::with_id(
+        app,
+        "service-replacement",
+        "Text Replacement",
+        true,
+        None::<&str>,
+    )?)?;
     edit.append(&substitutions)?;
     edit.append(&CheckMenuItem::with_id(
         app,
@@ -366,7 +515,21 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     let window = Submenu::new(app, "Window", true)?;
     window.append(&PredefinedMenuItem::minimize(app, None)?)?;
     window.append(&PredefinedMenuItem::maximize(app, Some("Zoom"))?)?;
+    window.append(&PredefinedMenuItem::separator(app)?)?;
+    window.append(&PredefinedMenuItem::bring_all_to_front(
+        app,
+        Some("Bring All to Front"),
+    )?)?;
     root.append(&window)?;
+    let help = Submenu::new(app, "Help", true)?;
+    help.append(&MenuItem::with_id(
+        app,
+        "help",
+        "Writer Classic Help",
+        true,
+        None::<&str>,
+    )?)?;
+    root.append(&help)?;
     app.set_menu(root)?;
     app.on_menu_event(|app, event| {
         let command = event.id().as_ref();
@@ -380,6 +543,9 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         match menu_route(command, focused.as_deref(), &label_refs) {
             MenuRoute::QuitAll => {
                 let _ = lifecycle::request_quit(app.clone(), app.state());
+            }
+            MenuRoute::Help => {
+                let _ = macos::open_help();
             }
             MenuRoute::RestoreVim => {
                 let _ = set_vim_checked(app.clone(), vim_preference(app));
@@ -448,6 +614,7 @@ fn main() {
             write_bytes,
             classic_font,
             set_vim_checked,
+            set_menu_checked,
             set_recent_files,
             lifecycle::request_quit,
             lifecycle::quit_ready,
@@ -462,10 +629,15 @@ fn main() {
             macos::icloud_documents,
             macos::list_icloud,
             macos::move_to_icloud,
-            macos::icloud_status
+            macos::icloud_status,
+            macos::open_help,
+            macos::detect_data,
+            macos::script_note_document,
+            macos::script_forget_document
         ])
         .setup(|app| {
             install_title_menu(app.handle());
+            install_scripting(app.handle());
             menu(app)?;
             let paths: Vec<_> = std::env::args()
                 .skip(1)
@@ -572,5 +744,88 @@ mod tests {
         ] {
             assert!(plist.contains(&format!("<string>{ext}</string>")), "{ext}");
         }
+    }
+    #[test]
+    fn help_does_not_need_a_focused_document() {
+        assert_eq!(menu_route("help", None, &["main"]), MenuRoute::Help);
+        assert_eq!(
+            menu_route("delete", Some("main"), &["main"]),
+            MenuRoute::Document("main")
+        );
+    }
+    #[test]
+    fn help_book_and_applescript_are_declared() {
+        let root = env!("CARGO_MANIFEST_DIR");
+        let plist = fs::read_to_string(format!("{root}/Info.plist")).unwrap();
+        assert!(plist.contains("<key>NSAppleScriptEnabled</key><true/>"));
+        assert!(plist.contains("<string>WriterClassic.sdef</string>"));
+        assert!(plist.contains("<string>WriterClassicHelp</string>"));
+        assert!(plist.contains("com.sidwood.writer-classic.help"));
+        let sdef = fs::read_to_string(format!("{root}/WriterClassic.sdef")).unwrap();
+        assert!(sdef.contains("name=\"front document\""));
+        assert!(sdef.contains("ClassicOpenCommand"));
+        assert!(sdef.contains("name=\"text\""));
+        let menu = fs::read_to_string(format!("{root}/src/main.rs")).unwrap();
+        for item in [
+            "Bring All to Front",
+            "Delete",
+            "Smart Copy/Paste",
+            "Smart Links",
+            "Data Detection",
+            "Writer Classic Help",
+        ] {
+            assert!(menu.contains(item), "{item}");
+        }
+    }
+    fn objc_check(define: &str) {
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/src/classic-scripting.m");
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("check");
+        let compile = std::process::Command::new("clang")
+            .args([
+                "-fobjc-arc",
+                "-framework",
+                "Cocoa",
+                define,
+                "-x",
+                "objective-c",
+                source,
+                "-o",
+            ])
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(
+            compile.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+        let ran = std::process::Command::new(&binary).output().unwrap();
+        assert!(
+            ran.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&ran.stdout),
+            String::from_utf8_lossy(&ran.stderr)
+        );
+    }
+    #[test]
+    fn applescript_gets_sets_and_opens_the_front_document() {
+        objc_check("-DCLASSIC_SCRIPT_SELFTEST");
+    }
+    #[test]
+    fn bring_all_to_front_keeps_every_window_visible_in_order() {
+        objc_check("-DCLASSIC_ARRANGE_MAIN");
+    }
+    #[test]
+    fn quicklook_generator_and_help_book_produce_previews() {
+        let status = std::process::Command::new("python3")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../scripts/build-macos-extras.py"
+            ))
+            .arg("--check")
+            .status()
+            .unwrap();
+        assert!(status.success());
     }
 }

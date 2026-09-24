@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Writer Classic Help</title>
+  <meta name="AppleTitle" content="Writer Classic Help">
+  <meta name="description" content="Help for Writer Classic: documents, focus, Vim, menus, and scripting.">
+  <style>
+    body { margin: 0; background: #f7f6f3; color: #1c1c1c; font: 17px/1.55 Georgia, serif; }
+    main { max-width: 680px; margin: 0 auto; padding: 48px 28px 80px; }
+    h1, h2 { font-weight: 600; line-height: 1.2; }
+    code, kbd { font-family: Menlo, monospace; font-size: 0.9em; }
+    a { color: #1c1c1c; }
+    nav a { margin-right: 1em; }
+  </style>
+</head>
+<body>
+  <main>
+    <a name="top" id="top"></a>
+    <h1>Writer Classic Help</h1>
+    <p>A plain-text Markdown writing window. This help book is original to this app. It is not the iA Writer Classic manual.</p>
+    <nav>
+      <a href="#documents">Documents</a>
+      <a href="#focus">Focus</a>
+      <a href="#editing">Editing</a>
+      <a href="#scripting">Scripting</a>
+    </nav>
+    <h2 id="documents">Documents</h2>
+    <p>File ▸ New opens another window. Open, Save, and Save As keep the text exactly as typed, including blank lines and Unicode. Named documents autosave. Close asks before discarding unsaved changes.</p>
+    <p>Quick Look can preview Markdown and plain-text files with the generator installed in this app.</p>
+    <h2 id="focus">Focus and appearance</h2>
+    <p>Focus Mode dims and blurs every sentence except the one at the caret. That sentence stays sharp and full contrast. The rest of the editor is not blurred as a whole. View ▸ Dark Mode switches the paper and type colors.</p>
+    <h2 id="editing">Editing</h2>
+    <p>Edit ▸ Delete removes the selection. With no selection, it deletes the next character. Substitutions ▸ Smart Copy/Paste inserts or removes a space so a pasted or deleted word does not run into its neighbors. Smart Links underlines URLs. Data Detection underlines dates, phone numbers, and addresses. Command-click a detection to follow it.</p>
+    <p>Window ▸ Bring All to Front orders this app’s windows in front of other apps without changing their order.</p>
+    <p>Vim Mode, when checked in the Edit menu, uses Vim motions. Command shortcuts stay on the Command key so Control chords remain available to Vim.</p>
+    <h2 id="scripting">AppleScript</h2>
+    <p>The front document’s text can be read and replaced, and a file can be opened:</p>
+    <pre><code>tell application "Writer Classic"
+  get text of front document
+  set text of front document to "Hello"
+  open POSIX file "/Users/me/Notes.md"
+end tell</code></pre>
+  </main>
+</body>
+</html>

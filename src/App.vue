@@ -53,6 +53,11 @@ const selection = ref("");
 const mode = ref("");
 const dark = ref(localStorage.getItem("writer-classic.dark") === "true");
 const vim = ref(localStorage.getItem("writer-classic.vim") !== "false");
+const storedFlag = (key: string) => localStorage.getItem(key) !== "false";
+const smartCopyPaste = ref(storedFlag("writer-classic.smart-copy-paste"));
+const smartLinks = ref(storedFlag("writer-classic.smart-links"));
+const dataDetection = ref(storedFlag("writer-classic.data-detection"));
+const dataNotice = ref("");
 const focus = ref(false);
 const formatBar = ref(
   localStorage.getItem("writer-classic.format") !== "false",
@@ -615,6 +620,22 @@ async function action(command: string) {
       case "vim":
         vim.value = !vim.value;
         return;
+      case "smart-copy-paste":
+        smartCopyPaste.value = !smartCopyPaste.value;
+        return;
+      case "smart-links":
+        smartLinks.value = !smartLinks.value;
+        return;
+      case "data-detection":
+        dataDetection.value = !dataDetection.value;
+        return;
+      case "help":
+        if (native) return await invoke("open_help");
+        window.open("/help/index.html", "writer-classic-help");
+        return;
+      case "bring-all-to-front":
+        window.focus();
+        return;
       case "format-bar":
         formatBar.value = !formatBar.value;
         return;
@@ -740,6 +761,16 @@ watch(vim, (enabled) => {
   localStorage.setItem("writer-classic.vim", String(enabled));
   if (native) void invoke("set_vim_checked", { checked: enabled });
 });
+for (const [flag, key, id] of [
+  [smartCopyPaste, "writer-classic.smart-copy-paste", "smart-copy-paste"],
+  [smartLinks, "writer-classic.smart-links", "smart-links"],
+  [dataDetection, "writer-classic.data-detection", "data-detection"],
+] as const) {
+  watch(flag, (enabled) => {
+    localStorage.setItem(key, String(enabled));
+    if (native) void invoke("set_menu_checked", { id, checked: enabled });
+  });
+}
 watch(formatBar, (enabled) =>
   localStorage.setItem("writer-classic.format", String(enabled)),
 );
@@ -747,6 +778,12 @@ watch(
   () => [doc.title, doc.path, doc.dirty],
   () => {
     void updateDocumentHeader().catch(showError);
+    if (native)
+      void invoke("script_note_document", {
+        title: doc.title,
+        path: doc.path ?? "",
+        text: doc.text,
+      }).catch(showError);
   },
 );
 watch(
@@ -754,6 +791,12 @@ watch(
   () => {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(refreshPreview, 3000);
+    if (native)
+      void invoke("script_note_document", {
+        title: doc.title,
+        path: doc.path ?? "",
+        text: doc.text,
+      }).catch(showError);
   },
 );
 watch([pending, exportDialog, recentDialog, cloudDialog], async () => {
@@ -851,6 +894,17 @@ onMounted(async () => {
           },
         ),
       );
+      cleanups.push(
+        await getCurrentWebviewWindow().listen<string>("script-set-text", (event) => {
+          changed(event.payload);
+        }),
+      );
+      for (const [id, checked] of [
+        ["smart-copy-paste", smartCopyPaste.value],
+        ["smart-links", smartLinks.value],
+        ["data-detection", dataDetection.value],
+      ] as const)
+        await invoke("set_menu_checked", { id, checked });
       cleanups.push(
         await getCurrentWebviewWindow().listen("versions-finished", () => {
           if (doc.path && !doc.dirty)
@@ -998,6 +1052,28 @@ onBeforeUnmount(() => {
           ><button @click="action('find')">Find…</button
           ><button @click="action('replace')">Find and Replace…</button
           ><button @click="action('copy-html')">Copy HTML</button>
+          <button @click="action('delete')">Delete</button>
+          <button
+            role="menuitemcheckbox"
+            :aria-checked="smartCopyPaste"
+            @click="action('smart-copy-paste')"
+          >
+            Smart Copy/Paste
+          </button>
+          <button
+            role="menuitemcheckbox"
+            :aria-checked="smartLinks"
+            @click="action('smart-links')"
+          >
+            Smart Links
+          </button>
+          <button
+            role="menuitemcheckbox"
+            :aria-checked="dataDetection"
+            @click="action('data-detection')"
+          >
+            Data Detection
+          </button>
           <button
             role="menuitemcheckbox"
             :aria-checked="vim"
@@ -1029,6 +1105,18 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </details>
+      <details>
+        <summary>Window</summary>
+        <div class="menu-items">
+          <button @click="action('bring-all-to-front')">Bring All to Front</button>
+        </div>
+      </details>
+      <details>
+        <summary>Help</summary>
+        <div class="menu-items">
+          <button @click="action('help')">Writer Classic Help</button>
+        </div>
+      </details>
       <span class="browser-title"
         ><img
           :src="documentIconUrl"
@@ -1042,16 +1130,21 @@ onBeforeUnmount(() => {
       <span>{{ error }}</span
       ><button aria-label="Dismiss error" @click="error = ''">Dismiss</button>
     </div>
+    <p v-if="dataNotice" class="data-notice" role="status">{{ dataNotice }}</p>
     <WriterEditor
       :key="generation"
       ref="editor"
       :text="doc.text"
       :vim="vim"
       :focus="focus"
+      :smart-copy-paste="smartCopyPaste"
+      :smart-links="smartLinks"
+      :data-detection="dataDetection"
       @change="changed"
       @selection="selection = $event"
       @mode="mode = $event"
       @command="action"
+      @data-action="dataNotice = $event"
     />
     <footer @mousemove="chromeHidden = false" @focusin="chromeHidden = false">
       <button

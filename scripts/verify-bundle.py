@@ -25,4 +25,20 @@ assert imported["UTTypeIconFile"] == "markdown-document-icon"
 assert classic.issubset(set(exported["UTTypeTagSpecification"]["public.filename-extension"]))
 assert (bundle / "Contents/Resources/markdown-document-icon.icns").read_bytes() == (root / "brand/markdown-document-icon.icns").read_bytes()
 assert (bundle / "Contents/Resources/icon.icns").read_bytes() == (root / "src-tauri/icons/icon.icns").read_bytes()
-print("PASS: arm64 Mach-O executable; Markdown Editor association and Classic extensions; document and app icon bytes match handed-off assets.")
+assert info["NSAppleScriptEnabled"] is True
+assert info["OSAScriptingDefinition"] == "WriterClassic.sdef"
+assert info["CFBundleHelpBookFolder"] == "WriterClassicHelp"
+assert info["CFBundleHelpBookName"] == "com.sidwood.writer-classic.help"
+sdef = (bundle / "Contents/Resources/WriterClassic.sdef").read_text()
+assert "front document" in sdef and "ClassicOpenCommand" in sdef
+help_page = bundle / "Contents/Resources/WriterClassicHelp/Contents/Resources/en.lproj/index.html"
+assert "Writer Classic Help" in help_page.read_text()
+assert (bundle / "Contents/Resources/WriterClassicHelp/WriterClassicHelp.helpindex").stat().st_size > 0
+generator = bundle / "Contents/Library/QuickLook/Writer Classic.qlgenerator"
+assert (generator / "Contents/MacOS/WriterClassicQL").is_file()
+ql_info = plistlib.load((generator / "Contents/Info.plist").open("rb"))
+types = ql_info["CFBundleDocumentTypes"][0]["LSItemContentTypes"]
+assert "public.plain-text" in types and "net.daringfireball.markdown" in types
+preview = bundle / "Contents/PlugIns/WriterClassicPreview.appex"
+assert (preview / "Contents/MacOS/WriterClassicPreview").is_file()
+print("PASS: arm64 Mach-O executable; Markdown association; Quick Look generator; help book; AppleScript definition; document and app icon bytes match handed-off assets.")

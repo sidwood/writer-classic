@@ -33,6 +33,13 @@ import {
 import { tags } from "@lezer/highlight";
 import { vim, Vim, getCM } from "@replit/codemirror-vim";
 import { sentenceAt } from "./document";
+import {
+  detectText,
+  detectionTarget,
+  smartDeleteBounds,
+  smartInserted,
+  type Detection,
+} from "./substitutions";
 
 import {
   autocompletion,
@@ -40,17 +47,75 @@ import {
   completionKeymap,
 } from "@codemirror/autocomplete";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-const props = defineProps<{ text: string; vim: boolean; focus: boolean }>();
+const props = defineProps<{
+  text: string;
+  vim: boolean;
+  focus: boolean;
+  smartCopyPaste: boolean;
+  smartLinks: boolean;
+  dataDetection: boolean;
+}>();
 const emit = defineEmits<{
   change: [text: string];
   selection: [text: string];
   mode: [mode: string];
   command: [command: string];
+  dataAction: [message: string];
 }>();
 const container = ref<HTMLDivElement>();
 let view: EditorView;
 const vimConfig = new Compartment();
 const focusConfig = new Compartment();
+const detectionConfig = new Compartment();
+
+function detectionExtension(items: Detection[]) {
+  return EditorView.decorations.of(
+    Decoration.set(
+      items
+        .filter((item) => item.start < item.end)
+        .map((item) =>
+          Decoration.mark({
+            class: `detected-${item.kind}`,
+            attributes: { title: item.value },
+          }).range(item.start, item.end),
+        ),
+    ),
+  );
+}
+function currentDetections(text: string) {
+  return detectText(text, props.smartLinks, props.dataDetection).filter(
+    (item) => item.end <= text.length,
+  );
+}
+function refreshDetections() {
+  if (!view) return;
+  const items = currentDetections(view.state.doc.toString());
+  view.dispatch({
+    effects: detectionConfig.reconfigure(
+      items.length ? detectionExtension(items) : [],
+    ),
+  });
+}
+function deleteText() {
+  view.dispatch(
+    view.state.changeByRange((range) => {
+      let from = range.from;
+      let to = range.to;
+      if (from === to) {
+        const next = view.state.doc.sliceString(
+          from,
+          Math.min(view.state.doc.length, from + 2),
+        );
+        const code = next.codePointAt(0) ?? 0;
+        to = from + (code > 0xffff ? 2 : next ? 1 : 0);
+      } else if (props.smartCopyPaste) {
+        [from, to] = smartDeleteBounds(view.state.doc.toString(), from, to);
+      }
+      return { changes: { from, to }, range: EditorSelection.cursor(from) };
+    }),
+  );
+  view.focus();
+}
 
 function focusDecorations(editor: EditorView): DecorationSet {
   const { from, to } = sentenceAt(
@@ -141,6 +206,7 @@ onMounted(() => {
           spellcheck: "true",
           autocapitalize: "off",
         }),
+        detectionConfig.of([]),
         focusConfig.of(props.focus ? sentenceFocus : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) emit("change", update.state.doc.toString());
@@ -185,14 +251,49 @@ onMounted(() => {
           keyup() {
             reportMode();
           },
-          mousedown() {
+          mousedown(event, editor) {
             reportMode();
+            if (!event.metaKey) return false;
+            const pos = editor.posAtCoords({
+              x: event.clientX,
+              y: event.clientY,
+            });
+            if (pos == null) return false;
+            const hit = currentDetections(editor.state.doc.toString()).find(
+              (item) => pos >= item.start && pos < item.end,
+            );
+            if (!hit) return false;
+            event.preventDefault();
+            const target = detectionTarget(hit);
+            if (target) window.open(target);
+            else emit("dataAction", `Detected date: ${hit.value}`);
+            return true;
+          },
+          paste(event, editor) {
+            if (!props.smartCopyPaste) return false;
+            const inserted = event.clipboardData?.getData("text/plain");
+            if (inserted == null) return false;
+            event.preventDefault();
+            const range = editor.state.selection.main;
+            const text = editor.state.doc.toString();
+            editor.dispatch(
+              editor.state.replaceSelection(
+                smartInserted(
+                  range.from > 0 ? text[range.from - 1] : "",
+                  range.to < text.length ? text[range.to] : "",
+                  inserted,
+                ),
+              ),
+            );
+            return true;
           },
         }),
       ],
     }),
   });
   view.focus();
+  view.focus();
+  refreshDetections();
   reportMode();
 });
 watch(
@@ -220,7 +321,12 @@ watch(
       effects: focusConfig.reconfigure(enabled ? sentenceFocus : []),
     });
     view.focus();
+    view.focus();
   },
+);
+watch(
+  () => [props.smartCopyPaste, props.smartLinks, props.dataDetection, props.text],
+  () => refreshDetections(),
 );
 onBeforeUnmount(() => view?.destroy());
 
@@ -334,6 +440,9 @@ function command(action: string) {
       view.dispatch({ changes: { from, to, insert: text } });
       break;
     }
+    case "delete":
+      deleteText();
+      break;
   }
 }
 defineExpose({ command, focus: () => view.focus() });

@@ -40,6 +40,10 @@
     <key>UTTypeConformsTo</key><array><string>public.plain-text</string></array>
     <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>md</string><string>markdown</string><string>mmd</string><string>multimarkdown</string><string>mdown</string><string>mkdn</string><string>mkd</string><string>mdwn</string><string>mdtxt</string><string>mdtext</string><string>mdml</string></array></dict>
   </dict></array>
+  <key>NSAppleScriptEnabled</key><true/>
+  <key>OSAScriptingDefinition</key><string>WriterClassic.sdef</string>
+  <key>CFBundleHelpBookFolder</key><string>WriterClassicHelp</string>
+  <key>CFBundleHelpBookName</key><string>com.sidwood.writer-classic.help</string>
   <key>NSUbiquitousContainers</key><dict><key>iCloud.com.sidwood.writer-classic</key><dict>
     <key>NSUbiquitousContainerName</key><string>Writer Classic</string>
     <key>NSUbiquitousContainerIsDocumentScopePublic</key><true/>
