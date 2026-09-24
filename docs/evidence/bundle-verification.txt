@@ -1,0 +1,1 @@
+PASS: arm64 Mach-O executable; Markdown Editor association; document and app icon bytes match handed-off assets.

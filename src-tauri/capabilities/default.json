@@ -1,0 +1,19 @@
+{
+  "identifier": "default",
+  "description": "Document and preview windows can use native dialogs and window controls.",
+  "windows": ["main", "document-*", "preview-*"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "core:window:allow-set-title",
+    "core:window:allow-set-theme",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-close",
+    "core:window:allow-destroy",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-print",
+    "core:event:default"
+  ]
+}

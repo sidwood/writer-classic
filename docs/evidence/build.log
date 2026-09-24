@@ -1,0 +1,31 @@
+
+> writer-classic@0.1.0 tauri
+> tauri build --target aarch64-apple-darwin
+
+        Info Looking up installed tauri packages to check mismatched versions...
+     Running beforeBuildCommand `npm run build`
+
+> writer-classic@0.1.0 build
+> vue-tsc --noEmit && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 86 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                      0.59 kB │ gzip:   0.39 kB
+dist/assets/markdown-document-icon-DH53Qe-C.png     23.75 kB
+dist/assets/index-C4PcpcXZ.css                       7.10 kB │ gzip:   2.26 kB
+dist/assets/index-CIUYLB_l.js                    1,849.47 kB │ gzip: 575.99 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 1.54s
+   Compiling writer-classic v0.1.0 (/Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri)
+    Finished `release` profile [optimized] target(s) in 10.55s
+       Built application at: /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/aarch64-apple-darwin/release/writer-classic
+    Bundling Writer Classic.app (/Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Writer Classic.app)
+    Finished 1 bundle at:
+        /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Writer Classic.app

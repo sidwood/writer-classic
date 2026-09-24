@@ -1,0 +1,12 @@
+
+> writer-classic@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.11 /Users/sidwood/code/ia-writer-classic-clone.goal
+
+
+ Test Files  2 passed (2)
+      Tests  4 passed (4)
+   Start at  21:14:42
+   Duration  78ms (transform 28ms, setup 0ms, import 44ms, tests 4ms, environment 0ms)

@@ -1,0 +1,14 @@
+   Compiling writer-classic v0.1.0 (/Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.12s
+     Running unittests src/main.rs (src-tauri/target/debug/deps/writer_classic-5cb570ad7c9e4caa)
+
+running 6 tests
+test tests::failure_does_not_create_a_partial_file ... ok
+iCloud container: Err("No iCloud ubiquity container is available. An Apple Developer signing identity and iCloud container entitlement are required. Files in iCloud Drive can still be opened and saved through the system dialogs.")
+test macos::tests::icloud_container_probe ... ok
+test macos::tests::move_preserves_text_and_does_not_overwrite_destination ... ok
+test tests::saving_through_a_symlink_preserves_the_alias ... ok
+test tests::raw_utf8_round_trip_and_external_conflict ... ok
+test macos::tests::native_versions_survive_atomic_replacement_and_can_be_removed ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s

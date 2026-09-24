@@ -1,0 +1,107 @@
+
+> writer-classic@0.1.0 dev
+> vite --host 127.0.0.1
+
+
+  VITE v7.3.6  ready in 90 ms
+
+  ➜  Local:   http://127.0.0.1:1420/
+8:29:27 PM [vite] (client) hmr update /src/App.vue
+8:30:09 PM [vite] (client) page reload src/main.ts
+8:30:09 PM [vite] (client) hmr update /src/App.vue
+8:30:09 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/sidwood/code/ia-writer-classic-clone.goal/src/App.vue:319:5
+  317 |      <div v-if="error" role="alert" class="error-message"><span>{{ error }}</span><button aria-label="Dismiss error" @...
+  318 |      <WriterEditor :key="generation" ref="editor" :text="doc.text" :vim="vim" :focus="focus" @change="changed" @select...
+  319 |      <footer @mousemove="chromeHidden = false" @focusin="chromeHidden = false">
+      |       ^
+  320 |        <button class="focus-switch" :aria-pressed="focus" title="Focus Mode (⌘D)" @click="action('focus')">Focus {{ fo...
+  321 |        <div v-if="formatBar" class="format-bar" aria-label="Formatting">
+      at createCompilerError (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3035:5)
+      at Object.onclosetag (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2402:13)
+      at Tokenizer.stateInClosingTagName (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3074:13)
+      at Object.parse (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:913:23)
+      at Object.parse$1 [as parse] (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1918:24)
+      at createDescriptor (file:///Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vitejs/plugin-vue/dist/index.mjs:1202:25)
+8:30:09 PM [vite] (client) Pre-transform error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/sidwood/code/ia-writer-classic-clone.goal/src/App.vue:319:5
+  317 |      <div v-if="error" role="alert" class="error-message"><span>{{ error }}</span><button aria-label="Dismiss error" @...
+  318 |      <WriterEditor :key="generation" ref="editor" :text="doc.text" :vim="vim" :focus="focus" @change="changed" @select...
+  319 |      <footer @mousemove="chromeHidden = false" @focusin="chromeHidden = false">
+      |       ^
+  320 |        <button class="focus-switch" :aria-pressed="focus" title="Focus Mode (⌘D)" @click="action('focus')">Focus {{ fo...
+  321 |        <div v-if="formatBar" class="format-bar" aria-label="Formatting">
+8:30:09 PM [vite] Internal server error: Element is missing end tag.
+  Plugin: vite:vue
+  File: /Users/sidwood/code/ia-writer-classic-clone.goal/src/App.vue:319:5
+  317 |      <div v-if="error" role="alert" class="error-message"><span>{{ error }}</span><button aria-label="Dismiss error" @...
+  318 |      <WriterEditor :key="generation" ref="editor" :text="doc.text" :vim="vim" :focus="focus" @change="changed" @select...
+  319 |      <footer @mousemove="chromeHidden = false" @focusin="chromeHidden = false">
+      |       ^
+  320 |        <button class="focus-switch" :aria-pressed="focus" title="Focus Mode (⌘D)" @click="action('focus')">Focus {{ fo...
+  321 |        <div v-if="formatBar" class="format-bar" aria-label="Formatting">
+      at createCompilerError (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1378:17)
+      at emitError (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3035:5)
+      at Object.onclosetag (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:2402:13)
+      at Tokenizer.stateInClosingTagName (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:799:16)
+      at Tokenizer.parse (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:1157:16)
+      at Object.baseParse (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-core/dist/compiler-core.cjs.js:3074:13)
+      at Object.parse (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-dom/dist/compiler-dom.cjs.js:913:23)
+      at Object.parse$1 [as parse] (/Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vue/compiler-sfc/dist/compiler-sfc.cjs.js:1918:24)
+      at createDescriptor (file:///Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vitejs/plugin-vue/dist/index.mjs:50:42)
+      at handleHotUpdate (file:///Users/sidwood/code/ia-writer-classic-clone.goal/node_modules/@vitejs/plugin-vue/dist/index.mjs:1202:25)
+8:30:35 PM [vite] (client) hmr update /src/style.css
+8:30:35 PM [vite] (client) hmr update /src/App.vue
+8:30:57 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:30:57 PM [vite] (client) ✨ new dependencies optimized: @codemirror/autocomplete
+8:30:57 PM [vite] (client) ✨ optimized dependencies changed. reloading
+8:34:13 PM [vite] (client) hmr update /src/App.vue
+8:35:00 PM [vite] (client) page reload src-tauri/target/aarch64-apple-darwin/release/build/writer-classic-0e565022c566b2e7/out/tauri-codegen-assets/55d5958146247181bc7d4713000f44c101522662f938cfbd15bfd97c9be14b5e.html
+8:38:39 PM [vite] changed tsconfig file detected: /Users/sidwood/code/ia-writer-classic-clone.goal/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+8:38:39 PM [vite] vite.config.ts changed, restarting server...
+8:38:39 PM [vite] (client) page reload index.html
+8:38:39 PM [vite] (client) hmr update /src/style.css
+8:38:39 PM [vite] (client) hmr update /src/App.vue
+8:38:39 PM [vite] (client) hmr update /src/App.vue
+8:38:39 PM [vite] (client) hmr update /src/App.vue, /src/WriterEditor.vue
+8:38:39 PM [vite] (client) page reload src/main.ts
+8:38:39 PM [vite] server restarted.
+8:40:16 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:40:16 PM [vite] (client) hmr update /src/Preview.vue
+8:40:16 PM [vite] (client) hmr update /src/App.vue
+8:41:19 PM [vite] (client) hmr update /src/App.vue
+8:46:45 PM [vite] (client) hmr update /src/App.vue
+8:46:45 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:48:20 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:50:59 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:51:33 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:51:33 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:53:57 PM [vite] (client) hmr update /src/style.css
+8:54:34 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:55:31 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:55:31 PM [vite] (client) hmr update /src/App.vue
+8:55:31 PM [vite] (client) hmr update /src/WriterEditor.vue
+8:55:31 PM [vite] (client) hmr update /src/App.vue
+8:56:54 PM [vite] (client) hmr update /src/App.vue
+8:59:29 PM [vite] (client) hmr update /src/App.vue
+
+new URL("../brand/markdown-document-icon.svg", import.meta.url) doesn't exist at build time, it will remain unchanged to be resolved at runtime. If this is intended, you can use the /* @vite-ignore */ comment to suppress this warning.
+9:00:03 PM [vite] (client) hmr update /src/App.vue
+9:02:02 PM [vite] (client) hmr update /src/App.vue
+9:03:56 PM [vite] (client) hmr update /src/App.vue
+9:04:44 PM [vite] (client) hmr update /src/App.vue
+9:04:54 PM [vite] (client) hmr update /src/App.vue
+9:06:54 PM [vite] (client) hmr update /src/App.vue
+9:07:17 PM [vite] (client) hmr update /src/App.vue
+9:07:17 PM [vite] (client) hmr update /src/App.vue
+9:09:03 PM [vite] (client) hmr update /src/style.css
+9:09:03 PM [vite] (client) hmr update /src/App.vue
+9:11:18 PM [vite] (client) hmr update /src/style.css
+9:11:18 PM [vite] (client) hmr update /src/App.vue
+9:11:35 PM [vite] (client) page reload src-tauri/target/aarch64-apple-darwin/release/build/writer-classic-0e565022c566b2e7/out/tauri-codegen-assets/2c01ba1fa26f1935ad1c6acd601bde32f94ef172cdd53b7f8ff14017a28c788e.html

@@ -1,0 +1,38 @@
+- main [ref=f5e3]:
+  - navigation "Application menu" [ref=f5e4]:
+    - group [ref=f5e5]:
+      - generic "File" [ref=f5e6]
+    - group [ref=f5e7]:
+      - generic "Edit" [ref=f5e8]
+      - text: ✓
+    - group [ref=f5e9]:
+      - generic "View" [ref=f5e10]
+    - generic:
+      - img "Markdown document"
+      - generic: Untitled — Edited
+  - generic [ref=f5e13]:
+    - textbox "Document text" [active] [ref=f5e14]:
+      - generic [ref=f5e15]: Keep your hands on the keyboard.
+      - generic [ref=f5e35]: Keep your mind in the text.
+      - generic [ref=f5e37]: "# A quiet place to write"
+      - generic [ref=f5e39]: Plain text. Sentence focus. Vim when you want it.
+    - generic: p
+  - generic [ref=f5e16]:
+    - button "Focus Off" [ref=f5e17]
+    - generic "Formatting" [ref=f5e18]:
+      - button "Heading 1" [ref=f5e19]: H1
+      - button "Heading 2" [ref=f5e20]: H2
+      - button "Heading 3" [ref=f5e21]: H3
+      - button "Heading 4" [ref=f5e22]: H4
+      - button "Heading 5" [ref=f5e23]: H5
+      - button "Heading 6" [ref=f5e24]: H6
+      - button "Strong" [ref=f5e25]: B
+      - button "Emphasis" [ref=f5e26]: I
+      - button "Strikethrough" [ref=f5e27]: S
+      - button "1. List" [ref=f5e28]
+      - button "• List" [ref=f5e29]
+    - generic "Vim state" [ref=f5e30]: VISUAL BLOCK
+    - generic "Document statistics" [ref=f5e31]:
+      - generic "Selected words" [ref=f5e42]: 1 W
+      - generic "Characters" [ref=f5e33]: 4 C
+      - generic "Reading time" [ref=f5e34]: 00:00:01

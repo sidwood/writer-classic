@@ -1,0 +1,47 @@
+{
+  "name": "writer-classic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-markdown": "^6.3.4",
+    "@codemirror/language": "^6.11.3",
+    "@codemirror/search": "^6.5.11",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.6",
+    "@lezer/highlight": "^1.2.1",
+    "@replit/codemirror-vim": "6.3.0",
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "docx": "^9.5.1",
+    "dompurify": "^3.2.7",
+    "mammoth": "^1.10.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-footnote": "^4.0.0",
+    "turndown": "^7.2.1",
+    "vue": "^3.5.22"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.1",
+    "@tauri-apps/cli": "^2.8.4",
+    "@types/markdown-it": "^14.1.2",
+    "@types/markdown-it-footnote": "^3.0.4",
+    "@types/node": "^24.5.2",
+    "@types/turndown": "^5.0.5",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "jszip": "^3.10.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.7",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.0.8"
+  }
+}

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="sheet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f1efea"/></linearGradient>
+    <linearGradient id="flap" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#e4e0d9"/><stop offset="1" stop-color="#f8f7f4"/></linearGradient>
+    <filter id="blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="8"/></filter>
+    <filter id="flapBlur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="10"/></filter>
+    <clipPath id="page"><path d="M216 64 H634 L848 278 V912 A40 40 0 0 1 808 952 H216 A40 40 0 0 1 176 912 V104 A40 40 0 0 1 216 64 Z"/></clipPath>
+  </defs>
+  <path d="M216 64 H634 L848 278 V912 A40 40 0 0 1 808 952 H216 A40 40 0 0 1 176 912 V104 A40 40 0 0 1 216 64 Z" transform="translate(0 8)" fill="#000" fill-opacity=".28" filter="url(#blur)"/>
+  <path d="M216 64 H634 L848 278 V912 A40 40 0 0 1 808 952 H216 A40 40 0 0 1 176 912 V104 A40 40 0 0 1 216 64 Z" fill="url(#sheet)"/>
+  <path d="M216 64 H634 L848 278 V912 A40 40 0 0 1 808 952 H216 A40 40 0 0 1 176 912 V104 A40 40 0 0 1 216 64 Z" fill="none" stroke="#000" stroke-opacity=".08" stroke-width="2"/>
+  <g clip-path="url(#page)"><path d="M634 64 V252 A26 26 0 0 0 660 278 H848 Z" transform="translate(-8 10)" fill="#000" fill-opacity=".16" filter="url(#flapBlur)"/></g>
+  <path d="M634 64 V252 A26 26 0 0 0 660 278 H848 Z" fill="url(#flap)"/>
+  <path d="M634 64 V252 A26 26 0 0 0 660 278 H848 Z" fill="none" stroke="#000" stroke-opacity=".08" stroke-width="2" stroke-linejoin="round"/>
+  <g transform="translate(512 600) scale(0.76)">
+  <path d="M-321.5 133 V35 A58 58 0 0 1 -205.5 35 V133 M-205.5 35 A58 58 0 0 1 -89.5 35 V133 M156.5 -133 V133 M156.5 55 A78 78 0 1 0 156.5 55.01" fill="none" stroke="#2c2c2f" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="211.5" y="122" width="110" height="36" rx="8.64" fill="#e8553a"/>
+  </g>
+</svg>

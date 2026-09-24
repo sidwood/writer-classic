@@ -1,0 +1,12 @@
+node_modules/
+dist/
+src-tauri/target/
+.playwright-cli/
+test-results/
+playwright-report/
+.DS_Store
+.qlty/out/
+.atomic/
+src-tauri/gen/
+.qlty/logs/
+.qlty/tmp/

@@ -1,0 +1,33 @@
+
+> writer-classic@0.1.0 test:e2e
+> playwright test
+
+(node:54054) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 20 tests using 1 worker
+
+  ✓   1 tests/e2e/native-boundary.spec.ts:4:1 › cancelled and failed native saves abort close; success closes only after write (576ms)
+  ✓   2 tests/e2e/title.spec.ts:4:3 › browser title is centered with Markdown icon immediately to its left at 860px (278ms)
+  ✓   3 tests/e2e/title.spec.ts:4:3 › browser title is centered with Markdown icon immediately to its left at 1280px (308ms)
+  ✓   4 tests/e2e/vim.spec.ts:3:1 › Vim defaults on, lives only in Edit as a checkbox, and explicit off survives reload (843ms)
+  ✓   5 tests/e2e/vim.spec.ts:60:5 › VISUAL: y and undo preserve proper selection shape (424ms)
+  ✓   6 tests/e2e/vim.spec.ts:60:5 › VISUAL: c and undo preserve proper selection shape (387ms)
+  ✓   7 tests/e2e/vim.spec.ts:60:5 › VISUAL: d and undo preserve proper selection shape (378ms)
+  ✓   8 tests/e2e/vim.spec.ts:60:5 › VISUAL LINE: y and undo preserve proper selection shape (387ms)
+  ✓   9 tests/e2e/vim.spec.ts:60:5 › VISUAL LINE: c and undo preserve proper selection shape (353ms)
+  ✓  10 tests/e2e/vim.spec.ts:60:5 › VISUAL LINE: d and undo preserve proper selection shape (435ms)
+  ✓  11 tests/e2e/vim.spec.ts:60:5 › VISUAL BLOCK: y and undo preserve proper selection shape (397ms)
+  ✓  12 tests/e2e/vim.spec.ts:60:5 › VISUAL BLOCK: c and undo preserve proper selection shape (414ms)
+  ✓  13 tests/e2e/vim.spec.ts:60:5 › VISUAL BLOCK: d and undo preserve proper selection shape (384ms)
+(node:54055) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  14 tests/e2e/writer.spec.ts:26:1 › raw document open/save preserves BOM, CRLF, duplicates, Unicode, whitespace and empty files (261ms)
+  ✓  15 tests/e2e/writer.spec.ts:48:1 › draft recovery and save/discard/cancel transitions protect edits (600ms)
+  ✓  16 tests/e2e/writer.spec.ts:76:1 › real Vim normal/insert/visual, operators, undo, search and Ex save work (462ms)
+  ✓  17 tests/e2e/writer.spec.ts:117:1 › dark mode persists; sentence focus, statistics, preview and formatting remain usable (495ms)
+  ✓  18 tests/e2e/writer.spec.ts:147:1 › find/replace, export HTML, RTF and DOCX, then import DOCX (1.1s)
+  ✓  19 tests/e2e/writer.spec.ts:187:1 › RTF export retains numbered lists and hyperlinks (498ms)
+  ✓  20 tests/e2e/writer.spec.ts:202:1 › Classic DOCX conversion preserves image alt text, code style and imported underline (515ms)
+
+  20 passed (9.9s)

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Writer Classic",
+  "version": "0.1.0",
+  "identifier": "com.sidwood.writer-classic",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "create": false,
+        "label": "main",
+        "title": "Untitled",
+        "width": 860,
+        "height": 640,
+        "minWidth": 560,
+        "minHeight": 320
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' blob: data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "icon": ["icons/icon.icns", "icons/icon.png"],
+    "resources": {
+      "../brand/markdown-document-icon.icns": "markdown-document-icon.icns"
+    },
+    "category": "Productivity",
+    "shortDescription": "A classic plain-text writing environment",
+    "macOS": { "minimumSystemVersion": "11.0", "infoPlist": "Info.plist" },
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown",
+          "txt",
+          "text",
+          "mmd",
+          "multimarkdown",
+          "mdown",
+          "mkdn",
+          "mkd",
+          "mdwn",
+          "mdtxt",
+          "mdtext",
+          "mdml",
+          "docx"
+        ],
+        "role": "Editor",
+        "name": "Text document"
+      }
+    ]
+  }
+}
