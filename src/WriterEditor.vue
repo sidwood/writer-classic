@@ -325,7 +325,12 @@ watch(
   },
 );
 watch(
-  () => [props.smartCopyPaste, props.smartLinks, props.dataDetection, props.text],
+  () => [
+    props.smartCopyPaste,
+    props.smartLinks,
+    props.dataDetection,
+    props.text,
+  ],
   () => refreshDetections(),
 );
 onBeforeUnmount(() => view?.destroy());

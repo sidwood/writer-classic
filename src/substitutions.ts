@@ -4,11 +4,7 @@ export function isWordChar(char: string) {
   return char !== "" && wordChar.test(char);
 }
 
-export function smartInserted(
-  before: string,
-  after: string,
-  inserted: string,
-) {
+export function smartInserted(before: string, after: string, inserted: string) {
   if (!inserted) return inserted;
   const prefix =
     !/^\s/u.test(inserted) && isWordChar(before) && isWordChar(inserted[0])
@@ -57,10 +53,7 @@ export function detectText(text: string, links: boolean, data: boolean) {
   };
   if (links) add("link", /https?:\/\/[^\s<>)]+/gu);
   if (data) {
-    add(
-      "phone",
-      /(?:\+1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]\d{3}[\s.-]\d{4}/gu,
-    );
+    add("phone", /(?:\+1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]\d{3}[\s.-]\d{4}/gu);
     add("date", /\b\d{4}-\d{2}-\d{2}\b/gu);
     add(
       "address",
@@ -79,8 +72,7 @@ export function detectText(text: string, links: boolean, data: boolean) {
 
 export function detectionTarget(item: Detection) {
   if (item.kind === "link") return item.value;
-  if (item.kind === "phone")
-    return `tel:${item.value.replace(/[^\d+]/gu, "")}`;
+  if (item.kind === "phone") return `tel:${item.value.replace(/[^\d+]/gu, "")}`;
   if (item.kind === "address")
     return `https://maps.apple.com/?q=${encodeURIComponent(item.value)}`;
   return null;

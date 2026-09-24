@@ -16,7 +16,8 @@ test("smart copy/paste separates words and removes the leftover space", () => {
 });
 
 test("smart links and data detection mark actionable text", () => {
-  const text = "See https://example.com/notes and call 415-555-0134 on 2024-03-15 at 1 Market Street.";
+  const text =
+    "See https://example.com/notes and call 415-555-0134 on 2024-03-15 at 1 Market Street.";
   const links = detectText(text, true, false);
   expect(links.map((item) => item.kind)).toEqual(["link"]);
   expect(detectionTarget(links[0])).toBe("https://example.com/notes");

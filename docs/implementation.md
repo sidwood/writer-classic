@@ -12,37 +12,37 @@ Observed Classic requirements: plain-text UTF-8 Markdown documents; multiple doc
 
 ## Acceptance matrix
 
-| Literal clause                                               | Current-checkout verification                                                                 | Status                                          |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Reimplement iA Writer Classic exactly                        | Installed 2.1.6 reference; residual gaps below                                                | Not established                                 |
-| Using Tauri                                                  | Native arm64 application build succeeds                                                       | Passed                                          |
-| Using Vue.js                                                 | Typecheck/Vite build and 38 browser scenarios                                                 | Passed                                          |
-| Works on Apple Silicon                                       | Mach-O arm64 bundle verified by `scripts/verify-bundle.py`                                    | Build passed                                    |
-| Vim mode                                                     | Motions/operators/search/Ex save, visual matrix, Ctrl chords stay in the editor              | Passed tested cases                             |
-| Dark mode                                                    | Toggle/reload/editor and preview computed color                                               | Passed tested cases                             |
-| Goal checkout only                                           | All source/assets/evidence under designated checkout                                          | Passed                                          |
-| Missing Vim preference on; explicit off persists             | `tests/e2e/vim.spec.ts`; native checkbox startup sync in `review-routing.spec.ts`            | Passed                                          |
-| v/V/Ctrl-v indicators and y/c/d/undo                         | Indicator effective opacity 1; visual undo including Ctrl-[, Ctrl-c, s, and C                | Passed tested cases                             |
-| Checked Vim in Edit, not View, synchronized                  | Edit checkbox; no-focus restore; persisted-off startup                                        | Passed tested cases; live menu bar unverified   |
-| Centered icon/title; traffic lights; no second native header | Browser 860/1280; AppKit frames in `docs/evidence/native-title-geometry.txt`                 | Passed measured geometry                        |
-| Unreadable screenshot; Classic pattern controls              | Centered proxy plus title, traffic lights left, system title hidden                          | Implemented and measured                        |
-| Original icons and Markdown association                      | Bundled bytes match `brand/`; UTI icon and Classic extensions in the built plist             | Passed                                          |
+| Literal clause                                               | Current-checkout verification                                                     | Status                                        |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------- |
+| Reimplement iA Writer Classic exactly                        | Installed 2.1.6 reference; residual gaps below                                    | Not established                               |
+| Using Tauri                                                  | Native arm64 application build succeeds                                           | Passed                                        |
+| Using Vue.js                                                 | Typecheck/Vite build and 38 browser scenarios                                     | Passed                                        |
+| Works on Apple Silicon                                       | Mach-O arm64 bundle verified by `scripts/verify-bundle.py`                        | Build passed                                  |
+| Vim mode                                                     | Motions/operators/search/Ex save, visual matrix, Ctrl chords stay in the editor   | Passed tested cases                           |
+| Dark mode                                                    | Toggle/reload/editor and preview computed color                                   | Passed tested cases                           |
+| Goal checkout only                                           | All source/assets/evidence under designated checkout                              | Passed                                        |
+| Missing Vim preference on; explicit off persists             | `tests/e2e/vim.spec.ts`; native checkbox startup sync in `review-routing.spec.ts` | Passed                                        |
+| v/V/Ctrl-v indicators and y/c/d/undo                         | Indicator effective opacity 1; visual undo including Ctrl-[, Ctrl-c, s, and C     | Passed tested cases                           |
+| Checked Vim in Edit, not View, synchronized                  | Edit checkbox; no-focus restore; persisted-off startup                            | Passed tested cases; live menu bar unverified |
+| Centered icon/title; traffic lights; no second native header | Browser 860/1280; AppKit frames in `docs/evidence/native-title-geometry.txt`      | Passed measured geometry                      |
+| Unreadable screenshot; Classic pattern controls              | Centered proxy plus title, traffic lights left, system title hidden               | Implemented and measured                      |
+| Original icons and Markdown association                      | Bundled bytes match `brand/`; UTI icon and Classic extensions in the built plist  | Passed                                        |
 
 ## Repair findings
 
-| Root cause | Fix | Regression |
-| --- | --- | --- |
-| Cancelled Save-and-Close still destroyed the window | Cancel increments a transition epoch and rechecks dirty state before close | `review-lifecycle.spec.ts` delayed Escape |
-| Cancel left autosave suppressed | Cancel reschedules the named-document timer | Close and Last Opened cancel tests |
-| Clean recovery showed a stale draft | Clean named drafts reload from disk; dirty drafts and read failures are kept | `review-lifecycle.spec.ts`, `review-routing.spec.ts` |
-| Ctrl chords ran Command shortcuts | macOS app shortcuts match Command only; Ctrl+Command+F remains full screen | `review-ui.spec.ts` |
-| Browser preview dark class missed `:root` | Dark class is set on `documentElement`; computed color is asserted | `review-ui.spec.ts`, `writer.spec.ts` |
-| Shorter or different fences closed code | Fence close requires the opening delimiter and at least its length | `tests/review-regressions.test.ts` |
-| Native title left-aligned | Custom centered proxy and title; system title hidden; resize observer | `native-title-geometry.txt`, cargo geometry test |
-| Preview-focused Quit ignored | Quit is independent of focus and waits for each document once | `menu_route` and quit-tracker tests |
-| iCloud was status-only | Browse, encoding-aware open, save, and move-to-container commands | `review-routing.spec.ts`; live container blocked |
-| Versions were a custom timestamp list | `browseDocumentVersions:` plus Last Saved, Previous Save, and Last Opened | Command tests; interactive timeline not driven |
-| Alternate encodings absent | Native Open encoding popup; non-lossy save in the chosen encoding | Rust CP1252/UTF-16 test; e2e wiring test |
+| Root cause                                          | Fix                                                                          | Regression                                           |
+| --------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Cancelled Save-and-Close still destroyed the window | Cancel increments a transition epoch and rechecks dirty state before close   | `review-lifecycle.spec.ts` delayed Escape            |
+| Cancel left autosave suppressed                     | Cancel reschedules the named-document timer                                  | Close and Last Opened cancel tests                   |
+| Clean recovery showed a stale draft                 | Clean named drafts reload from disk; dirty drafts and read failures are kept | `review-lifecycle.spec.ts`, `review-routing.spec.ts` |
+| Ctrl chords ran Command shortcuts                   | macOS app shortcuts match Command only; Ctrl+Command+F remains full screen   | `review-ui.spec.ts`                                  |
+| Browser preview dark class missed `:root`           | Dark class is set on `documentElement`; computed color is asserted           | `review-ui.spec.ts`, `writer.spec.ts`                |
+| Shorter or different fences closed code             | Fence close requires the opening delimiter and at least its length           | `tests/review-regressions.test.ts`                   |
+| Native title left-aligned                           | Custom centered proxy and title; system title hidden; resize observer        | `native-title-geometry.txt`, cargo geometry test     |
+| Preview-focused Quit ignored                        | Quit is independent of focus and waits for each document once                | `menu_route` and quit-tracker tests                  |
+| iCloud was status-only                              | Browse, encoding-aware open, save, and move-to-container commands            | `review-routing.spec.ts`; live container blocked     |
+| Versions were a custom timestamp list               | `browseDocumentVersions:` plus Last Saved, Previous Save, and Last Opened    | Command tests; interactive timeline not driven       |
+| Alternate encodings absent                          | Native Open encoding popup; non-lossy save in the chosen encoding            | Rust CP1252/UTF-16 test; e2e wiring test             |
 
 Named-review extras covered by the same checks: the Vim indicator stays effectively opaque after edits; the native checkbox follows a persisted-off preference and is restored when no editor accepts the toggle; `document.title` is the document title only, with the dirty dot on the close control; `UTTypeIconFile` is `markdown-document-icon`; menu, quit, and preview events use `emit_to` and the current webview window; visual `c` is not armed while keys are pending, disarms on return to normal, and `s`/`C` share the change undo group.
 

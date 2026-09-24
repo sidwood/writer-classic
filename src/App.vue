@@ -895,9 +895,12 @@ onMounted(async () => {
         ),
       );
       cleanups.push(
-        await getCurrentWebviewWindow().listen<string>("script-set-text", (event) => {
-          changed(event.payload);
-        }),
+        await getCurrentWebviewWindow().listen<string>(
+          "script-set-text",
+          (event) => {
+            changed(event.payload);
+          },
+        ),
       );
       for (const [id, checked] of [
         ["smart-copy-paste", smartCopyPaste.value],
@@ -1108,7 +1111,9 @@ onBeforeUnmount(() => {
       <details>
         <summary>Window</summary>
         <div class="menu-items">
-          <button @click="action('bring-all-to-front')">Bring All to Front</button>
+          <button @click="action('bring-all-to-front')">
+            Bring All to Front
+          </button>
         </div>
       </details>
       <details>
