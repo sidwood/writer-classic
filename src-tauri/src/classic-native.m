@@ -123,9 +123,22 @@ char *classic_open_documents(const char *directory) {
 
 @interface ClassicHistoryDocument : NSDocument
 @property(strong) NSData *contents;
+@property NSUInteger classicEncoding;
+- (NSString *)versionText;
+- (NSData *)dataFromVersionText;
 @end
 @implementation ClassicHistoryDocument
 + (BOOL)autosavesInPlace { return YES; }
+- (NSStringEncoding)versionEncoding {
+    return self.classicEncoding ? self.classicEncoding : NSUTF8StringEncoding;
+}
+- (NSString *)versionText {
+    if (!self.contents.length) return @"";
+    return [[NSString alloc] initWithData:self.contents encoding:self.versionEncoding] ?: @"";
+}
+- (NSData *)dataFromVersionText {
+    return [self.versionText dataUsingEncoding:self.versionEncoding allowLossyConversion:NO];
+}
 - (BOOL)readFromData:(NSData *)data ofType:(NSString *)type error:(NSError **)error {
     (void)type; (void)error;
     self.contents = data;
@@ -133,7 +146,13 @@ char *classic_open_documents(const char *directory) {
 }
 - (NSData *)dataOfType:(NSString *)type error:(NSError **)error {
     (void)type; (void)error;
-    return self.contents ?: [NSData data];
+    if (self.contents) return self.contents;
+    return [self dataFromVersionText] ?: [NSData data];
+}
+- (BOOL)writeToURL:(NSURL *)url ofType:(NSString *)typeName error:(NSError **)outError {
+    NSData *data = [self dataOfType:typeName error:outError];
+    if (!data) return NO;
+    return [data writeToURL:url options:NSDataWritingAtomic error:outError];
 }
 // The web view is the live editor. Do not let NSDocument autosave a stale snapshot over it.
 - (void)autosaveWithImplicitCancellability:(BOOL)implicit completionHandler:(void (^)(NSError *))completionHandler {
@@ -154,10 +173,7 @@ char *classic_open_documents(const char *directory) {
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:window.contentView.bounds];
     scroll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     NSTextView *text = [[NSTextView alloc] initWithFrame:scroll.bounds];
-    NSString *decoded = [[NSString alloc] initWithData:self.contents encoding:NSUTF8StringEncoding];
-    if (!decoded) decoded = [[NSString alloc] initWithData:self.contents encoding:NSUnicodeStringEncoding];
-    if (!decoded) decoded = [[NSString alloc] initWithData:self.contents encoding:NSWindowsCP1252StringEncoding];
-    text.string = decoded ?: @"";
+    text.string = [self versionText];
     text.font = [NSFont fontWithName:@"Menlo" size:18];
     text.editable = NO;
     text.textContainerInset = NSMakeSize(55, 45);
@@ -168,7 +184,7 @@ char *classic_open_documents(const char *directory) {
 @end
 
 static char documentKey;
-const char *classic_browse_versions(NSWindow *window, const char *path, void (*finished)(void *), void *context) {
+const char *classic_browse_versions(NSWindow *window, const char *path, unsigned long encoding, void (*finished)(void *), void *context) {
     @try {
         NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:path]];
         NSError *error = nil;
@@ -183,6 +199,7 @@ const char *classic_browse_versions(NSWindow *window, const char *path, void (*f
             if (![document readFromURL:url ofType:@"Markdown" error:&error]) return strdup(error.localizedDescription.UTF8String ?: "Could not refresh document versions");
             document.fileURL = url;
         }
+        document.classicEncoding = encoding ? (NSUInteger)encoding : NSUTF8StringEncoding;
         __block id observer;
         observer = [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidExitVersionBrowserNotification object:window queue:nil usingBlock:^(NSNotification *note) {
             (void)note;
@@ -291,5 +308,39 @@ int main(int argc, char **argv) {
     if (!error) return 0;
     fprintf(stderr, "%s\n", error);
     return 1;
+}
+#endif
+#ifdef CLASSIC_VERSION_ENCODING_MAIN
+int main(void) {
+    @autoreleasepool {
+        NSData *latin1 = [NSData dataWithBytes:"caf\xe9" length:4];
+        ClassicHistoryDocument *document = [ClassicHistoryDocument new];
+        document.classicEncoding = NSWindowsCP1252StringEncoding;
+        if (![document readFromData:latin1 ofType:@"Markdown" error:nil]) return 1;
+        if (![[document versionText] isEqualToString:@"café"]) {
+            fprintf(stderr, "latin1 displayed as %s\n", [document versionText].UTF8String ?: "(nil)");
+            return 2;
+        }
+        NSData *written = [document dataOfType:@"Markdown" error:nil];
+        if (![written isEqualToData:latin1]) return 3;
+        NSData *encoded = [document dataFromVersionText];
+        if (![encoded isEqualToData:latin1]) {
+            fprintf(stderr, "latin1 rewrite forced another encoding\n");
+            return 4;
+        }
+        NSData *utf16 = [@"ΩA" dataUsingEncoding:NSUTF16BigEndianStringEncoding];
+        document.classicEncoding = NSUTF16BigEndianStringEncoding;
+        [document readFromData:utf16 ofType:@"Markdown" error:nil];
+        if (![[document versionText] isEqualToString:@"ΩA"]) {
+            fprintf(stderr, "utf16be displayed as %s\n", [document versionText].UTF8String ?: "(nil)");
+            return 5;
+        }
+        if (![[document dataOfType:@"Markdown" error:nil] isEqualToData:utf16]) return 6;
+        if (![[document dataFromVersionText] isEqualToData:utf16]) {
+            fprintf(stderr, "utf16be rewrite was not big-endian\n");
+            return 7;
+        }
+        return 0;
+    }
 }
 #endif

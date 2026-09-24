@@ -14,16 +14,133 @@ static NSString *EscapeHTML(NSString *text) {
 }
 
 static NSString *InlineMarkdown(NSString *escaped) {
-    NSMutableString *text = [escaped mutableCopy];
-    NSRegularExpression *code = [NSRegularExpression regularExpressionWithPattern:@"`([^`]+)`" options:0 error:nil];
+    NSMutableString *text = [NSMutableString string];
+    NSMutableArray<NSString *> *codes = [NSMutableArray array];
+    NSUInteger index = 0, length = escaped.length;
+    while (index < length) {
+        if ([escaped characterAtIndex:index] != '`') {
+            [text appendFormat:@"%C", [escaped characterAtIndex:index]];
+            index++;
+            continue;
+        }
+        NSUInteger open = index;
+        while (index < length && [escaped characterAtIndex:index] == '`') index++;
+        NSUInteger ticks = index - open;
+        NSUInteger scan = index, close = NSNotFound;
+        while (scan < length) {
+            if ([escaped characterAtIndex:scan] != '`') { scan++; continue; }
+            NSUInteger run = scan;
+            while (run < length && [escaped characterAtIndex:run] == '`') run++;
+            if (run - scan == ticks) { close = scan; break; }
+            scan = run;
+        }
+        if (close == NSNotFound) {
+            for (NSUInteger tick = 0; tick < ticks; tick++) [text appendString:@"`"];
+            continue;
+        }
+        NSString *content = [escaped substringWithRange:NSMakeRange(index, close - index)];
+        if (content.length >= 2 && [content hasPrefix:@" "] && [content hasSuffix:@" "] && [content stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]].length)
+            content = [content substringWithRange:NSMakeRange(1, content.length - 2)];
+        [codes addObject:content ?: @""];
+        [text appendFormat:@"\uE000%lu\uE001", (unsigned long)codes.count - 1];
+        index = close + ticks;
+    }
     NSRegularExpression *strong = [NSRegularExpression regularExpressionWithPattern:@"\\*\\*([^*]+)\\*\\*" options:0 error:nil];
     NSRegularExpression *emphasis = [NSRegularExpression regularExpressionWithPattern:@"(?<!\\*)\\*([^*]+)\\*(?!\\*)" options:0 error:nil];
     NSRegularExpression *link = [NSRegularExpression regularExpressionWithPattern:@"\\[([^\\]]+)\\]\\((https?://[^\\s)]+)\\)" options:0 error:nil];
-    [code replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<code>$1</code>"];
     [strong replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<strong>$1</strong>"];
     [emphasis replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<em>$1</em>"];
     [link replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<a href=\"$2\">$1</a>"];
+    for (NSUInteger code = 0; code < codes.count; code++) {
+        NSString *token = [NSString stringWithFormat:@"\uE000%lu\uE001", (unsigned long)code];
+        [text replaceOccurrencesOfString:token withString:[NSString stringWithFormat:@"<code>%@</code>", codes[code]] options:0 range:NSMakeRange(0, text.length)];
+    }
     return text;
+}
+
+static BOOL FenceLine(NSString *line, unichar *delimiter, NSUInteger *length, NSString **info, BOOL *closer) {
+    NSUInteger index = 0;
+    while (index < line.length && index < 3 && [line characterAtIndex:index] == ' ') index++;
+    if (index >= line.length) return NO;
+    unichar marker = [line characterAtIndex:index];
+    if (marker != '`' && marker != '~') return NO;
+    NSUInteger start = index;
+    while (index < line.length && [line characterAtIndex:index] == marker) index++;
+    if (index - start < 3) return NO;
+    NSString *rest = [line substringFromIndex:index];
+    if (marker == '`' && [rest containsString:@"`"]) return NO;
+    *delimiter = marker;
+    *length = index - start;
+    *info = [rest stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    *closer = (*info).length == 0;
+    return YES;
+}
+
+static BOOL ListLine(NSString *line, NSInteger *depth, unichar *kind, NSString **content) {
+    NSUInteger index = 0;
+    while (index < line.length && index < 3 && [line characterAtIndex:index] == ' ') index++;
+    if (index >= line.length) return NO;
+    unichar marker = [line characterAtIndex:index];
+    if (marker == '*' || marker == '-' || marker == '+') {
+        NSUInteger start = index;
+        if (marker == '*') while (index < line.length && [line characterAtIndex:index] == '*') index++;
+        else index++;
+        if (index >= line.length || [line characterAtIndex:index] != ' ') return NO;
+        *depth = marker == '*' ? (NSInteger)(index - start) : 1;
+        *kind = 'u';
+        *content = [line substringFromIndex:index + 1];
+        return *depth > 0;
+    }
+    NSInteger levels = 0;
+    BOOL digits = NO;
+    while (index < line.length) {
+        unichar character = [line characterAtIndex:index];
+        if (character >= '0' && character <= '9') { digits = YES; index++; continue; }
+        if (character == '.' && digits) {
+            levels++;
+            digits = NO;
+            index++;
+            if (index < line.length && [line characterAtIndex:index] == ' ') {
+                *depth = levels;
+                *kind = 'o';
+                *content = [line substringFromIndex:index + 1];
+                return YES;
+            }
+            continue;
+        }
+        break;
+    }
+    return NO;
+}
+
+static void CloseLists(NSMutableString *body, NSInteger *depth, unichar kind) {
+    while (*depth > 0) {
+        [body appendString:@"</li>"];
+        [body appendString:kind == 'o' ? @"</ol>" : @"</ul>"];
+        (*depth)--;
+    }
+}
+
+static void AppendListItem(NSMutableString *body, NSInteger *openDepth, unichar *openKind, NSInteger depth, unichar kind, NSString *html) {
+    if (*openDepth && *openKind != kind) CloseLists(body, openDepth, *openKind);
+    if (depth < 1) depth = 1;
+    if (*openDepth == depth) [body appendString:@"</li><li>"];
+    else if (*openDepth > depth) {
+        while (*openDepth > depth) {
+            [body appendString:@"</li>"];
+            [body appendString:*openKind == 'o' ? @"</ol>" : @"</ul>"];
+            (*openDepth)--;
+        }
+        [body appendString:@"</li><li>"];
+    } else {
+        while (*openDepth < depth) {
+            [body appendString:kind == 'o' ? @"<ol>" : @"<ul>"];
+            [body appendString:@"<li>"];
+            (*openDepth)++;
+            *openKind = kind;
+        }
+    }
+    [body appendString:html ?: @""];
 }
 
 static BOOL IsMarkdown(NSString *uti, NSString *name) {
@@ -43,44 +160,62 @@ NSString *WriterPreviewHTML(NSString *text, NSString *uti, NSString *name) {
         [body appendFormat:@"<pre>%@</pre>", EscapeHTML(text ?: @"")];
     } else {
         BOOL inCode = NO;
-        NSString *fence = nil;
-        for (NSString *line in [(text ?: @"") componentsSeparatedByString:@"\n"]) {
-            if ([line hasPrefix:@"```"] || [line hasPrefix:@"~~~"]) {
-                NSString *marker = [line hasPrefix:@"```"] ? @"```" : @"~~~";
-                if (!inCode) {
-                    inCode = YES;
-                    fence = marker;
-                    [body appendString:@"<pre><code>"];
-                } else if ([line hasPrefix:fence]) {
+        unichar fenceChar = 0;
+        NSUInteger fenceLength = 0;
+        NSInteger listDepth = 0;
+        unichar listKind = 0;
+        for (NSString *raw in [(text ?: @"") componentsSeparatedByString:@"\n"]) {
+            NSString *line = [raw hasSuffix:@"\r"] ? [raw substringToIndex:raw.length - 1] : raw;
+            unichar delimiter = 0;
+            NSUInteger markerLength = 0;
+            NSString *info = nil;
+            BOOL closer = NO;
+            BOOL fence = FenceLine(line, &delimiter, &markerLength, &info, &closer);
+            if (inCode) {
+                if (fence && closer && delimiter == fenceChar && markerLength >= fenceLength) {
                     inCode = NO;
-                    fence = nil;
+                    fenceChar = 0;
+                    fenceLength = 0;
                     [body appendString:@"</code></pre>"];
                 } else [body appendFormat:@"%@\n", EscapeHTML(line)];
                 continue;
             }
-            if (inCode) {
-                [body appendFormat:@"%@\n", EscapeHTML(line)];
+            if (fence) {
+                CloseLists(body, &listDepth, listKind);
+                inCode = YES;
+                fenceChar = delimiter;
+                fenceLength = markerLength;
+                NSCharacterSet *safe = [NSCharacterSet characterSetWithCharactersInString:@"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+-#"];
+                if (info.length && [info rangeOfCharacterFromSet:[safe invertedSet]].location == NSNotFound)
+                    [body appendFormat:@"<pre><code class=\"language-%@\">", EscapeHTML(info)];
+                else [body appendString:@"<pre><code>"];
                 continue;
             }
             if ([line hasPrefix:@"#"]) {
                 NSUInteger level = 0;
                 while (level < line.length && level < 6 && [line characterAtIndex:level] == '#') level++;
                 if (level && (line.length == level || [line characterAtIndex:level] == ' ')) {
+                    CloseLists(body, &listDepth, listKind);
                     NSString *content = InlineMarkdown(EscapeHTML([[line substringFromIndex:level] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]));
                     [body appendFormat:@"<h%lu>%@</h%lu>", (unsigned long)level, content, (unsigned long)level];
                     continue;
                 }
             }
-            if ([line hasPrefix:@"- "] || [line hasPrefix:@"* "]) {
-                [body appendFormat:@"<li>%@</li>", InlineMarkdown(EscapeHTML([line substringFromIndex:2]))];
+            NSInteger depth = 0;
+            unichar kind = 0;
+            NSString *item = nil;
+            if (ListLine(line, &depth, &kind, &item)) {
+                AppendListItem(body, &listDepth, &listKind, depth, kind, InlineMarkdown(EscapeHTML(item)));
                 continue;
             }
+            CloseLists(body, &listDepth, listKind);
             if (!line.length) {
                 [body appendString:@"<br>"];
                 continue;
             }
             [body appendFormat:@"<p>%@</p>", InlineMarkdown(EscapeHTML(line))];
         }
+        CloseLists(body, &listDepth, listKind);
         if (inCode) [body appendString:@"</code></pre>"];
     }
     return [NSString stringWithFormat:@"<!doctype html><html><head><meta charset=\"utf-8\"><title>%@</title><style>body{margin:0;padding:48px 64px;background:#f7f6f3;color:#1c1c1c;font:18px/1.55 Menlo,monospace}h1,h2,h3,h4,h5,h6{font-family:Georgia,serif;line-height:1.2}pre{white-space:pre-wrap}a{color:#1c1c1c}</style></head><body><article>%@</article></body></html>", title, body];

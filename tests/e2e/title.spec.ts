@@ -31,3 +31,9 @@ for (const width of [860, 1280]) {
     expect(await page.locator(".browser-title").count()).toBe(1);
   });
 }
+test("browser tab title is the document title before any edit", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle("Untitled");
+});

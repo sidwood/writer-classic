@@ -43,6 +43,15 @@ Observed Classic requirements: plain-text UTF-8 Markdown documents; multiple doc
 | iCloud was status-only                              | Browse, encoding-aware open, save, and move-to-container commands            | `review-routing.spec.ts`; live container blocked     |
 | Versions were a custom timestamp list               | `browseDocumentVersions:` plus Last Saved, Previous Save, and Last Opened    | Command tests; interactive timeline not driven       |
 | Alternate encodings absent                          | Native Open encoding popup; non-lossy save in the chosen encoding            | Rust CP1252/UTF-16 test; e2e wiring test             |
+| Delayed clean recovery replaced typing            | Disk reload applies only if the document is still that clean text            | `review-routing.spec.ts` delayed read           |
+| AppleScript get/set ignored document and property | Object specifiers resolve the requested document and property                | In-process get/set selftest                     |
+| Autosave skipped while busy was dropped           | A busy automatic save is rescheduled                                         | `review-routing.spec.ts` busy save              |
+| Empty and closed documents were unscriptable      | Startup notes every document, including empty; close forgets it              | `review-routing.spec.ts` registry test          |
+| Versions were read as UTF-8                       | Version read/write uses the document encoding and keeps the original bytes   | Rust CP1252/UTF-16 version test; browser selftest |
+| Quick Look rewrote code, lists, emphasis, fences  | Preview protects code spans and matches fence length and list shorthand      | Quick Look semantics check                      |
+| Fresh windows were unscriptable and closed ones stayed listed | Note on mount and after apply; forget on close; skip nil windows | Scripting selftest; registry e2e |
+| New, Duplicate, and recovered windows appeared before the title | Those windows start hidden and show after the document header | `review-routing.spec.ts` hidden-window test |
+| Browser tab title waited for the first edit | `document.title` is set from `doc.title` on mount | `title.spec.ts` initial title |
 
 Named-review extras covered by the same checks: the Vim indicator stays effectively opaque after edits; the native checkbox follows a persisted-off preference and is restored when no editor accepts the toggle; `document.title` is the document title only, with the dirty dot on the close control; `UTTypeIconFile` is `markdown-document-icon`; menu, quit, and preview events use `emit_to` and the current webview window; visual `c` is not armed while keys are pending, disarms on return to normal, and `s`/`C` share the change undo group.
 

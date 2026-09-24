@@ -136,6 +136,42 @@ def check():
         run(["clang", "-fobjc-arc", "-DCLASSIC_QL_DUMP", "-Wno-deprecated-declarations", "-framework", "Foundation", "-framework", "CoreText", "-framework", "CoreGraphics", "-framework", "QuickLook", str(QL / "generator.m"), "-o", str(dump)])
         html = subprocess.check_output([str(dump), str(markdown), "net.daringfireball.markdown", "sample.md"], text=True)
         assert "<h1>Title</h1>" in html and "<strong>bold token</strong>" in html
+        semantics = root / "semantics.md"
+        semantics.write_text(
+            "```\n~~~\n** literal\n```\n** child\n"
+            "````\n```\n** literal\n````\n"
+            "~~~\n```\n** tilde\n~~~\n** child\n"
+            "```js\n** literal\n```\n"
+            "`*not em*` and `**not strong**`\n"
+            "`a*b` *c*\n"
+            "* One\n** Two\n"
+            "1. First\n"
+            "*em*\n",
+            encoding="utf-8",
+        )
+        semantic = subprocess.check_output(
+            [str(dump), str(semantics), "net.daringfireball.markdown", "semantics.md"],
+            text=True,
+        )
+        assert "<pre><code>~~~\n** literal\n</code></pre>" in semantic
+        assert "<pre><code>```\n** literal\n</code></pre>" in semantic
+        assert "<pre><code>```\n** tilde\n</code></pre>" in semantic
+        assert '<pre><code class="language-js">** literal\n</code></pre>' in semantic
+        assert "<li>child</li>" in semantic
+        assert "** child" not in semantic
+        assert "<li>literal</li>" not in semantic
+        assert "<strong>literal</strong>" not in semantic
+        assert "<strong>tilde</strong>" not in semantic
+        assert "<code>*not em*</code>" in semantic
+        assert "<code>**not strong**</code>" in semantic
+        assert "<em>not em</em>" not in semantic
+        assert "<strong>not strong</strong>" not in semantic
+        assert "<code>a*b</code>" in semantic
+        assert "<em>c</em>" in semantic
+        assert "<li>One" in semantic and "<li>Two</li>" in semantic
+        assert "<li>First</li>" in semantic
+        assert "<em>em</em>" in semantic
+        assert "<li>em</li>" not in semantic
         text_html = subprocess.check_output([str(dump), str(plain), "public.plain-text", "sample.txt"], text=True)
         assert "<pre>Plain text token\n</pre>" in text_html
         loader = root / "loader.m"

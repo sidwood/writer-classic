@@ -125,6 +125,7 @@ const recent = ref<string[]>(
 const fileInput = ref<HTMLInputElement>();
 const stats = computed(() => statistics(selection.value || doc.text));
 let autosave: ReturnType<typeof setTimeout>;
+let editEpoch = 0;
 let previewTimer: ReturnType<typeof setTimeout>;
 let previewWindow: Window | null = null;
 let nativePreview: WebviewWindow | null = null;
@@ -149,10 +150,16 @@ async function browseVersions() {
   if (native) {
     if (doc.dirty && !(await saveDocument())) return;
     if (doc.dirty) return;
-    await invoke("browse_native_versions", { path: doc.path });
+    await invoke("browse_native_versions", {
+      path: doc.path,
+      encoding: textEncoding.value,
+    });
     return;
   }
-  versions.value = await invoke<Version[]>("list_versions", { path: doc.path });
+  versions.value = await invoke<Version[]>("list_versions", {
+    path: doc.path,
+    encoding: textEncoding.value,
+  });
   chosenVersion.value = 0;
   versionDialog.value = true;
 }
@@ -218,6 +225,7 @@ function persistDraft() {
   }
 }
 function changed(text: string) {
+  editEpoch++;
   doc.edit(text);
   chromeHidden.value = true;
   persistDraft();
@@ -245,12 +253,16 @@ function applyDocument(
   selection.value = "";
   generation.value++;
   persistDraft();
+  noteScriptDocument();
 }
 async function saveDocument(
   saveAs = false,
   automatic = false,
 ): Promise<boolean> {
-  if (busy.value) return false;
+  if (busy.value) {
+    if (automatic) scheduleAutosave();
+    return false;
+  }
   busy.value = true;
   try {
     let path = doc.path;
@@ -274,7 +286,10 @@ async function saveDocument(
       persistDraft();
       if (!automatic || Date.now() - lastVersion > 3600000) {
         try {
-          await invoke("save_version", { path });
+          await invoke("save_version", {
+            path,
+            encoding: textEncoding.value,
+          });
           lastVersion = Date.now();
         } catch (reason) {
           showError(
@@ -297,6 +312,7 @@ async function saveDocument(
     return false;
   } finally {
     busy.value = false;
+    if (doc.dirty) scheduleAutosave();
   }
 }
 function download(name: string, bytes: Uint8Array, type: string) {
@@ -308,8 +324,11 @@ function download(name: string, bytes: Uint8Array, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 async function confirmTransition(action: () => Promise<void>) {
+  if (busy.value) {
+    scheduleAutosave();
+    return;
+  }
   clearTimeout(autosave);
-  if (busy.value) return;
   if (doc.dirty) {
     pending.value = action;
     return;
@@ -358,6 +377,7 @@ async function newDocument(
       height: 640,
       minWidth: 560,
       minHeight: 320,
+      visible: false,
     });
   } else await confirmTransition(async () => applyDocument(null, text, ""));
 }
@@ -440,8 +460,10 @@ async function closeDocument() {
   await confirmTransition(async () => {
     localStorage.removeItem(draftKey);
     await nativePreview?.destroy();
-    if (native) await getCurrentWindow().destroy();
-    else applyDocument(null, "");
+    if (native) {
+      await invoke("script_forget_document").catch(showError);
+      await getCurrentWindow().destroy();
+    } else applyDocument(null, "");
   });
 }
 function refreshPreview() {
@@ -583,6 +605,7 @@ async function action(command: string) {
         if (doc.path) {
           const older = await invoke<Version[]>("list_versions", {
             path: doc.path,
+            encoding: textEncoding.value,
           });
           const previous = older.find(
             (version) => version.text !== doc.savedText,
@@ -774,16 +797,19 @@ for (const [flag, key, id] of [
 watch(formatBar, (enabled) =>
   localStorage.setItem("writer-classic.format", String(enabled)),
 );
+function noteScriptDocument() {
+  if (!native) return;
+  void invoke("script_note_document", {
+    title: doc.title,
+    path: doc.path ?? "",
+    text: doc.text,
+  }).catch(showError);
+}
 watch(
   () => [doc.title, doc.path, doc.dirty],
   () => {
     void updateDocumentHeader().catch(showError);
-    if (native)
-      void invoke("script_note_document", {
-        title: doc.title,
-        path: doc.path ?? "",
-        text: doc.text,
-      }).catch(showError);
+    noteScriptDocument();
   },
 );
 watch(
@@ -791,12 +817,7 @@ watch(
   () => {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(refreshPreview, 3000);
-    if (native)
-      void invoke("script_note_document", {
-        title: doc.title,
-        path: doc.path ?? "",
-        text: doc.text,
-      }).catch(showError);
+    noteScriptDocument();
   },
 );
 watch([pending, exportDialog, recentDialog, cloudDialog], async () => {
@@ -819,12 +840,22 @@ onMounted(async () => {
         draft.encoding ?? 4,
       );
       if (native && draft.path && draft.text === draft.savedText) {
+        const epoch = editEpoch;
+        const recoveredPath = draft.path;
+        const recoveredText = draft.text;
+        const encoding = textEncoding.value;
         try {
           const text = await invoke<string>(
-            textEncoding.value === 4 ? "read_text" : "read_encoded",
-            { path: draft.path, encoding: textEncoding.value },
+            encoding === 4 ? "read_text" : "read_encoded",
+            { path: recoveredPath, encoding },
           );
-          applyDocument(draft.path, text, text, textEncoding.value);
+          if (
+            epoch === editEpoch &&
+            doc.path === recoveredPath &&
+            doc.text === recoveredText &&
+            doc.savedText === recoveredText
+          )
+            applyDocument(recoveredPath, text, text, encoding);
         } catch (reason) {
           showError(`Could not refresh recovered document. ${reason}`);
         }
@@ -833,8 +864,10 @@ onMounted(async () => {
     }
     const initialPath = new URLSearchParams(location.search).get("open");
     if (native && initialPath) await openPath(initialPath);
+    await updateDocumentHeader();
     if (native) {
-      await updateDocumentHeader();
+      noteScriptDocument();
+      await getCurrentWindow().show();
       await invoke("set_vim_checked", { checked: vim.value });
       await invoke("set_recent_files", { paths: recent.value });
       cleanups.push(
@@ -867,6 +900,7 @@ onMounted(async () => {
               height: 640,
               minWidth: 560,
               minHeight: 320,
+              visible: false,
             });
         }
       }
@@ -950,6 +984,7 @@ function preferenceChanged(event: StorageEvent) {
 }
 window.addEventListener("storage", preferenceChanged);
 onBeforeUnmount(() => {
+  if (native) void invoke("script_forget_document").catch(() => {});
   clearTimeout(autosave);
   clearTimeout(previewTimer);
   cleanups.forEach((fn) => fn());

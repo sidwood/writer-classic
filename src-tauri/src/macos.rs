@@ -23,7 +23,7 @@ pub fn replace_file(path: &Path, temporary: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn browse_native_versions(window: tauri::Window, path: String) -> Result<(), String> {
+pub fn browse_native_versions(window: tauri::Window, path: String, encoding: usize) -> Result<(), String> {
     use tauri::Emitter;
     let _main = objc2::MainThreadMarker::new().ok_or("Versions require the main thread")?;
     extern "C" fn finished(context: *mut std::ffi::c_void) {
@@ -38,6 +38,7 @@ pub fn browse_native_versions(window: tauri::Window, path: String) -> Result<(),
         fn classic_browse_versions(
             window: *mut std::ffi::c_void,
             path: *const std::ffi::c_char,
+            encoding: usize,
             finished: extern "C" fn(*mut std::ffi::c_void),
             context: *mut std::ffi::c_void,
         ) -> *mut std::ffi::c_char;
@@ -46,7 +47,7 @@ pub fn browse_native_versions(window: tauri::Window, path: String) -> Result<(),
     let pointer = window.ns_window().map_err(|e| e.to_string())?;
     let path = std::ffi::CString::new(path).map_err(|e| e.to_string())?;
     let context = Box::into_raw(Box::new(window)).cast();
-    let error = unsafe { classic_browse_versions(pointer, path.as_ptr(), finished, context) };
+    let error = unsafe { classic_browse_versions(pointer, path.as_ptr(), encoding, finished, context) };
     if error.is_null() {
         Ok(())
     } else {
@@ -68,15 +69,16 @@ pub struct Version {
 }
 
 #[tauri::command]
-pub fn list_versions(path: String) -> Result<Vec<Version>, String> {
+pub fn list_versions(path: String, encoding: usize) -> Result<Vec<Version>, String> {
     let versions = NSFileVersion::otherVersionsOfItemAtURL(&url(Path::new(&path)));
     let mut result = Vec::new();
     if let Some(versions) = versions {
         for version in &versions {
             if let Some(path) = version.URL().path() {
                 let path = path.to_string();
+                let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
                 result.push(Version {
-                    text: std::fs::read_to_string(&path).map_err(|e| e.to_string())?,
+                    text: crate::encoding::decode(&bytes, encoding)?,
                     path,
                     timestamp: version
                         .modificationDate()
@@ -91,11 +93,16 @@ pub fn list_versions(path: String) -> Result<Vec<Version>, String> {
 }
 
 #[tauri::command]
-pub fn save_version(path: String) -> Result<(), String> {
-    let item = url(Path::new(&path));
+pub fn save_version(path: String, encoding: usize) -> Result<(), String> {
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    // Reject a UTF-8 reinterpretation. The snapshot is the encoded file bytes.
+    crate::encoding::decode(&bytes, encoding)?;
+    let directory = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let contents = directory.path().join("version");
+    std::fs::write(&contents, &bytes).map_err(|e| e.to_string())?;
     NSFileVersion::addVersionOfItemAtURL_withContentsOfURL_options_error(
-        &item,
-        &item,
+        &url(Path::new(&path)),
+        &url(&contents),
         NSFileVersionAddingOptions::empty(),
     )
     .map_err(|e| e.to_string())?;
@@ -372,12 +379,67 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("versions.md").to_string_lossy().to_string();
         super::super::write_text(path.clone(), "first".into(), None).unwrap();
-        save_version(path.clone()).unwrap();
+        save_version(path.clone(), 4).unwrap();
         super::super::write_text(path.clone(), "second".into(), Some("first".into())).unwrap();
-        let versions = list_versions(path.clone()).unwrap();
+        let versions = list_versions(path.clone(), 4).unwrap();
         assert_eq!(versions[0].text, "first");
         remove_version(path.clone(), Some(versions[0].path.clone())).unwrap();
-        assert!(list_versions(path).unwrap().is_empty());
+        assert!(list_versions(path, 4).unwrap().is_empty());
+    }
+    #[test]
+    fn versions_preserve_the_document_encoding() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cafe.txt").to_string_lossy().to_string();
+        crate::encoding::write_encoded(path.clone(), "café".into(), None, 12).unwrap();
+        save_version(path.clone(), 12).unwrap();
+        crate::encoding::write_encoded(path.clone(), "x".into(), Some("café".into()), 12).unwrap();
+        let versions = list_versions(path.clone(), 12).unwrap();
+        assert_eq!(versions[0].text, "café");
+        assert_eq!(std::fs::read(&versions[0].path).unwrap(), b"caf\xe9");
+        remove_version(path.clone(), Some(versions[0].path.clone())).unwrap();
+        let be = 0x9000_0100usize;
+        crate::encoding::write_encoded(path.clone(), "ΩA".into(), None, be).unwrap();
+        save_version(path.clone(), be).unwrap();
+        crate::encoding::write_encoded(path.clone(), "Z".into(), Some("ΩA".into()), be).unwrap();
+        let versions = list_versions(path.clone(), be).unwrap();
+        assert_eq!(versions[0].text, "ΩA");
+        assert_eq!(
+            std::fs::read(&versions[0].path).unwrap(),
+            [0x03, 0xa9, 0x00, 0x41]
+        );
+        remove_version(path, Some(versions[0].path.clone())).unwrap();
+    }
+    #[test]
+    fn version_browser_reads_and_writes_the_document_encoding() {
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/src/classic-native.m");
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("version-encoding");
+        let compile = std::process::Command::new("clang")
+            .args([
+                "-fobjc-arc",
+                "-framework",
+                "Cocoa",
+                "-DCLASSIC_VERSION_ENCODING_MAIN",
+                "-x",
+                "objective-c",
+                source,
+                "-o",
+            ])
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(
+            compile.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+        let ran = std::process::Command::new(&binary).output().unwrap();
+        assert!(
+            ran.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&ran.stdout),
+            String::from_utf8_lossy(&ran.stderr)
+        );
     }
     #[test]
     fn move_preserves_text_and_does_not_overwrite_destination() {
