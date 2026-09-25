@@ -1,0 +1,99 @@
+{
+  "passed" : true,
+  "shift 0.0pt" : {
+    "exit" : 0,
+    "expected" : 0,
+    "result" : {
+      "classic" : {
+        "capHeight" : 12,
+        "firstInk" : 27,
+        "left" : 15,
+        "lines" : 4,
+        "pitch" : 23,
+        "top" : 27
+      },
+      "clone" : {
+        "capHeight" : 12,
+        "firstInk" : 27,
+        "left" : 15,
+        "lines" : 4,
+        "pitch" : 23,
+        "top" : 27
+      },
+      "cloneOrigin" : "first ink 27.0 lies in the first line box 22.0–45.602599999999995",
+      "clonePage" : {
+        "face" : "Menlo",
+        "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
+        "fontSize" : "16px",
+        "htmlClass" : "",
+        "innerHeight" : 583,
+        "innerWidth" : 735,
+        "lineHeight" : "23.6026px",
+        "scrollerTop" : 0,
+        "spaceEm" : 0.60204999999999997,
+        "textLeft" : 14,
+        "textTop" : 22
+      },
+      "compared" : true,
+      "failures" : [
+
+      ],
+      "origin" : {
+        "classicSkipTop" : 32,
+        "classicTitlebar" : 32,
+        "cloneSkipTop" : 0,
+        "cloneTitlebar" : 32,
+        "definition" : "bottom edge of the title bar"
+      },
+      "passed" : true
+    }
+  },
+  "shift 6.0pt" : {
+    "exit" : 1,
+    "expected" : 1,
+    "result" : {
+      "classic" : {
+        "capHeight" : 12,
+        "firstInk" : 33,
+        "left" : 15,
+        "lines" : 4,
+        "pitch" : 23,
+        "top" : 33
+      },
+      "clone" : {
+        "capHeight" : 12,
+        "firstInk" : 27,
+        "left" : 15,
+        "lines" : 4,
+        "pitch" : 23,
+        "top" : 27
+      },
+      "cloneOrigin" : "first ink 27.0 lies in the first line box 22.0–45.602599999999995",
+      "clonePage" : {
+        "face" : "Menlo",
+        "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
+        "fontSize" : "16px",
+        "htmlClass" : "",
+        "innerHeight" : 583,
+        "innerWidth" : 735,
+        "lineHeight" : "23.6026px",
+        "scrollerTop" : 0,
+        "spaceEm" : 0.60204999999999997,
+        "textLeft" : 14,
+        "textTop" : 22
+      },
+      "compared" : true,
+      "failures" : [
+        "top padding differs"
+      ],
+      "origin" : {
+        "classicSkipTop" : 32,
+        "classicTitlebar" : 32,
+        "cloneSkipTop" : 0,
+        "cloneTitlebar" : 32,
+        "definition" : "bottom edge of the title bar"
+      },
+      "passed" : false
+    }
+  }
+}

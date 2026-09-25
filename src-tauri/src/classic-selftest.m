@@ -233,10 +233,20 @@ static void selftest_run(NSWindow *window) {
                 selftest_post_key(window, @"\e", 53, 0);
                 selftest_type(window, @"i");
                 selftest_after(0.3, ^{
+                    // Events posted to a window that is not key and main can still
+                    // reach it, so the sentence counts only when the window held both.
+                    BOOL keyWhileTyping = window.isKeyWindow && window.isMainWindow;
                     selftest_type(window, @"Typed in the native window.");
                     selftest_post_key(window, @"\e", 53, 0);
                     selftest_after(1.0, ^{
                         selftest_read(window, @"afterTyping", ^{
+                            NSDictionary *typed = selftestReport[@"afterTyping"];
+                            BOOL keyAfter = [typed[@"isKeyWindow"] boolValue] && [typed[@"isMainWindow"] boolValue];
+                            BOOL landed = [typed[@"page"][@"text"] containsString:@"Typed in the native window."];
+                            selftestReport[@"typingKeyAndMain"] = @((BOOL)(keyWhileTyping && keyAfter));
+                            selftestReport[@"typingCounted"] = @((BOOL)(landed && keyWhileTyping && keyAfter));
+                            if (landed && !(keyWhileTyping && keyAfter))
+                                selftestReport[@"typingNote"] = @"text arrived, but the window was not key and main, so it is not typing proof";
                             selftest_snapshot(window, @"native-typing.png", ^{ selftest_dark(window); });
                         });
                     });
@@ -269,9 +279,11 @@ static void selftest_golden(NSWindow *window, double width, double height, NSStr
             " content.blur();"
             " const scroller = document.querySelector('.cm-scroller').getBoundingClientRect();"
             " const line = content.querySelector('.cm-line').getBoundingClientRect();"
-            " return JSON.stringify({innerWidth: window.innerWidth, htmlClass: document.documentElement.className,"
+            " return JSON.stringify({innerWidth: window.innerWidth, innerHeight: window.innerHeight, htmlClass: document.documentElement.className,"
             " fontSize: getComputedStyle(content).fontSize, lineHeight: getComputedStyle(content).lineHeight,"
             " fontFamily: getComputedStyle(content).fontFamily,"
+            " face: document.querySelector('.writer-editor')?.dataset.face ?? null,"
+            " spaceEm: Number(document.querySelector('.writer-editor')?.dataset.spaceEm ?? 0),"
             " textLeft: line.left, textTop: line.top - scroller.top, scrollerTop: scroller.top});"
             "})()", literal];
         WKWebView *webview = selftest_webview(window.contentView);
@@ -281,7 +293,19 @@ static void selftest_golden(NSWindow *window, double width, double height, NSStr
             golden[@"windowHeight"] = @(window.frame.size.height);
             golden[@"titlebarHeight"] = @(window.frame.size.height - window.contentLayoutRect.size.height);
             golden[@"webviewWidth"] = @(webview.bounds.size.width);
+            golden[@"webviewHeight"] = @(webview.bounds.size.height);
             golden[@"backingScale"] = @(window.backingScaleFactor);
+            // The window has a full-size content view, so the web view starts at the
+            // top of the frame, under the title bar. WebKit insets the page by the
+            // title bar (safeAreaInsets.top), and the snapshot starts at the page's
+            // origin. The comparator uses pageOriginBelowFrame to measure this image
+            // from the title bar's bottom edge, the same origin as the Classic capture.
+            NSRect web = [webview convertRect:webview.bounds toView:nil];
+            double webviewTop = window.frame.size.height - NSMaxY(web);
+            golden[@"webviewTopBelowFrame"] = @(webviewTop);
+            golden[@"fullSizeContentView"] = @((window.styleMask & NSWindowStyleMaskFullSizeContentView) != 0);
+            golden[@"webviewSafeAreaTop"] = @(webview.safeAreaInsets.top);
+            golden[@"pageOriginBelowFrame"] = @(webviewTop + webview.safeAreaInsets.top);
             if ([result isKindOfClass:[NSString class]])
                 golden[@"page"] = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] ?: result;
             if (error) golden[@"scriptError"] = error.userInfo[@"WKJavaScriptExceptionMessage"] ?: error.localizedDescription;

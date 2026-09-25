@@ -5,7 +5,8 @@
 # (cargo build --manifest-path src-tauri/Cargo.toml), and Screen Recording
 # permission for the terminal so Classic's window can be captured.
 # Exit 0: text inset, top padding, line pitch and cap height match Classic.
-# Exit 1: they differ. Exit 2: Classic could not be captured, so nothing was compared.
+# Exit 1: they differ, or the comparator failed its same-origin self-check.
+# Exit 2: Classic could not be captured, so nothing was compared.
 # There is no browser fallback: a Chromium screenshot is not the native window.
 set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -45,4 +46,6 @@ for item in "${state[@]}"; do
   fi
 done
 rm -rf "$backup"
+# The comparator must measure a same-origin capture as equal before its verdict counts.
+swift "$root/scripts/classic-golden.swift" selfcheck "$out" || exit 1
 swift "$root/scripts/classic-golden.swift" measure "$out"

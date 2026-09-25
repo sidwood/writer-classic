@@ -25,10 +25,12 @@ System Events is denied to this runner (`-1743`), `AXIsProcessTrusted()` is fals
 
 Top-level files (08:33, launched while another app was frontmost, so macOS did not activate it):
 
-- The document window was neither key nor main. Typing still reached the editor through the web view first responder: `Typed in the native window.`
+- The document window was neither key nor main. Text still arrived through events posted to that window: `Typed in the native window.` Posted events can reach a window that is not key, so this run is not typing proof. The self-test now records `typingCounted` and counts the sentence only when the window was key and main while typing and after it.
 - View ▸ Dark Mode with no key or main window: checked, body `rgb(32, 33, 36)`.
 - A second, non-document window was made key and main, and View ▸ Dark Mode was chosen again. The visible document window received it: item unchecked, body `rgb(240, 240, 240)`.
 - Print PDF: `Untitled 25/09/2026, 08:33` / `Typed in the native window.` / `Page 1 of 1`.
 - `lsappinfo.txt`: `"LSDisplayName"="Writer Classic"`.
+
+`key-check/` (after the key-and-main rule was added): `typingKeyAndMain` true, `typingCounted` true, page text ends `Typed in the native window.`, View ▸ Dark Mode checked.
 
 Not covered: a human pointer click on the macOS menu bar and hardware key presses, and the Dock tile pixels. Those need Accessibility or Screen Recording permission this runner does not have.

@@ -31,3 +31,5 @@ for item in "${state[@]}"; do
 done
 rm -rf "$backup"
 cat "$out/native-selftest.json"
+# Typed text counts only when the document window was key and main.
+grep -q '"typingCounted" : true' "$out/native-selftest.json" || { echo "typing was not proven in a key and main window" >&2; exit 1; }

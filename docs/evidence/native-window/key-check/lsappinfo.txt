@@ -1,0 +1,3 @@
+"LSDisplayName"="Writer Classic"
+"CFBundleIdentifier"=[ NULL ] 
+"CFBundleExecutablePath"="/Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/debug/writer-classic"

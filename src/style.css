@@ -149,7 +149,13 @@ kbd {
 }
 .cm-scroller {
   overflow: auto;
-  font-family: "Classic Nitti", "Nitti Pro", Menlo, monospace !important;
+  font-family: var(
+    --writer-font-family,
+    "Classic Nitti",
+    "Nitti Pro",
+    Menlo,
+    monospace
+  ) !important;
   font-size: var(--writer-font-size, 19px);
   line-height: var(--writer-line-height, 27.854px) !important;
   scrollbar-color: var(--border) var(--paper);

@@ -33,11 +33,12 @@ async function textBlock(page: import("@playwright/test").Page) {
 }
 
 // Classic's inset: ceil((window − container − 15) / 2) + 5 at the side and
-// floor(lineHeight) − 1 at the top, with a 0.54em Nitti Pro space.
+// floor(lineHeight) − 1 at the top. The container is eighty spaces of the face
+// that draws. Classic's Nitti Pro is not loaded here, so that face is Menlo.
 for (const [width, fontSize, left, top, measure] of [
-  [735, "16px", 14, 22, 693],
-  [860, "19px", 12, 26, 822],
-  [1280, "24px", 114, 32, 1038],
+  [735, "16px", 14, 22, 692],
+  [860, "19px", 12, 26, 821],
+  [1280, "24px", 54, 32, 1157],
 ] as const) {
   test(`a ${width}px window insets ${fontSize} text ${left}px from the side and ${top}px from the top`, async ({
     page,
@@ -68,3 +69,45 @@ test("resizing changes the type size and keeps text inside the window", async ({
   expect(block.left).toBe(14);
   expect(block.right).toBeGreaterThan(0);
 });
+
+test("the column is sized for the face that draws, and says which", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  const editor = page.locator(".writer-editor");
+  await expect(editor).toHaveAttribute("data-face", "Menlo");
+  const { spaceEm, width } = await editor.evaluate((element) => {
+    const context = document.createElement("canvas").getContext("2d")!;
+    context.font = "24px Menlo";
+    return {
+      spaceEm: Number((element as HTMLElement).dataset.spaceEm),
+      width: context.measureText(" ").width,
+    };
+  });
+  expect(spaceEm).toBeCloseTo(width / 24, 4);
+  const block = await textBlock(page);
+  expect(block.width + 10).toBe(Math.ceil(width * 80 + 11));
+});
+
+for (const [state, fontSize] of [
+  ["0", "17px"],
+  ["2", "14px"],
+] as const) {
+  test(`workflow state ${state} uses Classic's ${fontSize} step at 735`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 735, height: 640 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("writer-classic.workflow", value),
+      state,
+    );
+    await page.goto("/");
+    const editor = page.getByRole("textbox", { name: "Document text" });
+    await expect(editor).toHaveCSS("font-size", fontSize);
+    await expect(page.locator(".writer-editor")).toHaveAttribute(
+      "data-workflow",
+      state,
+    );
+  });
+}

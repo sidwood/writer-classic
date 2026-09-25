@@ -32,7 +32,13 @@ import { tags } from "@lezer/highlight";
 import { vim, Vim, getCM } from "@replit/codemirror-vim";
 import { sentenceAt } from "./document";
 import { marksAt, type FormatMarks } from "./format-marks";
-import { classicLayout } from "./adaptive-layout";
+import {
+  NITTI_SPACE_EM,
+  WORKFLOW_FACE,
+  classicLayout,
+  workflowState,
+  type WorkflowState,
+} from "./adaptive-layout";
 import {
   detectText,
   detectionTarget,
@@ -348,6 +354,9 @@ onMounted(() => {
   applyLayout();
   window.addEventListener("resize", applyLayout);
   document.fonts.addEventListener("loadingdone", applyLayout);
+  // WebKit can hold back resize events for a window that is not in front.
+  resizeObserver = new ResizeObserver(() => applyLayout());
+  resizeObserver.observe(document.documentElement);
   refreshDetections();
   reportMode();
   reportMarks();
@@ -393,15 +402,49 @@ watch(
 onBeforeUnmount(() => {
   window.removeEventListener("resize", applyLayout);
   document.fonts.removeEventListener("loadingdone", applyLayout);
+  resizeObserver?.disconnect();
   view?.destroy();
 });
+
+let resizeObserver: ResizeObserver | undefined;
+const FALLBACK_FACES = "Menlo, monospace";
+
+/**
+ * The face the editor draws for this workflow state and its space advance in
+ * ems. Classic's faces are never bundled. When a state's face is not
+ * available, the fallback draws, and that fallback is what gets measured.
+ */
+function drawnFace(state: WorkflowState) {
+  const wanted = WORKFLOW_FACE[state];
+  const family = state === 1 ? `"Classic Nitti", "Nitti Pro"` : `"${wanted}"`;
+  const stack = `${family}, ${FALLBACK_FACES}`;
+  const context = document.createElement("canvas").getContext("2d");
+  if (!context) return { stack, name: "unmeasured", spaceEm: NITTI_SPACE_EM };
+  const width = (font: string, text: string) => {
+    context.font = `100px ${font}`;
+    return context.measureText(text).width;
+  };
+  const sample = "mmmmiiiiWW00 .";
+  const fallback = width(FALLBACK_FACES, sample) === width(stack, sample);
+  return {
+    stack,
+    name: fallback ? "Menlo" : wanted,
+    spaceEm: width(stack, " ") / 100 || NITTI_SPACE_EM,
+  };
+}
 
 // Classic changes type size with the window and insets its text container
 // from the window edges and the title bar.
 function applyLayout() {
   const element = container.value;
   if (!element || !view) return;
-  const layout = classicLayout(window.innerWidth);
+  const state = workflowState(localStorage.getItem("writer-classic.workflow"));
+  const face = drawnFace(state);
+  const layout = classicLayout(window.innerWidth, face.spaceEm, state);
+  element.dataset.workflow = String(state);
+  element.dataset.face = face.name;
+  element.dataset.spaceEm = face.spaceEm.toFixed(5);
+  element.style.setProperty("--writer-font-family", face.stack);
   element.style.setProperty("--writer-font-size", `${layout.fontSize}px`);
   element.style.setProperty("--writer-line-height", `${layout.lineHeight}px`);
   element.style.setProperty("--writer-left", `${layout.left}px`);

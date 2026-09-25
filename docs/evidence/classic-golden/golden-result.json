@@ -2,21 +2,33 @@
   "classic" : "ScreenCaptureKit refused Classic window 22979: The user declined TCCs for application, window, display capture",
   "clone" : {
     "capHeight" : 12,
+    "firstInk" : 27,
     "left" : 15,
     "lines" : 4,
     "pitch" : 23,
     "top" : 27
   },
+  "cloneOrigin" : "first ink 27.0 lies in the first line box 22.0–45.602599999999995",
   "clonePage" : {
+    "face" : "Menlo",
     "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
     "fontSize" : "16px",
     "htmlClass" : "",
+    "innerHeight" : 583,
     "innerWidth" : 735,
     "lineHeight" : "23.6026px",
     "scrollerTop" : 0,
+    "spaceEm" : 0.60204999999999997,
     "textLeft" : 14,
     "textTop" : 22
   },
   "compared" : false,
+  "origin" : {
+    "classicSkipTop" : null,
+    "classicTitlebar" : null,
+    "cloneSkipTop" : 0,
+    "cloneTitlebar" : 32,
+    "definition" : "bottom edge of the title bar"
+  },
   "passed" : false
 }

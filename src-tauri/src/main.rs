@@ -674,6 +674,49 @@ fn document_title(path: Option<&Path>) -> String {
         .to_string()
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum Reopen<'a> {
+    Nothing,
+    Show(&'a str),
+    OpenNew,
+}
+
+/// A Dock click with no visible document shows a hidden one, or opens a new
+/// document when there is none. Previews are not documents.
+fn reopen_action<'a>(windows: &[(&'a str, bool)]) -> Reopen<'a> {
+    let documents: Vec<_> = windows
+        .iter()
+        .filter(|(label, _)| !label.starts_with("preview-"))
+        .collect();
+    if documents.iter().any(|(_, visible)| *visible) {
+        Reopen::Nothing
+    } else if let Some((label, _)) = documents.first() {
+        Reopen::Show(label)
+    } else {
+        Reopen::OpenNew
+    }
+}
+
+fn reopen(app: &tauri::AppHandle) {
+    let windows = app.webview_windows();
+    let states: Vec<(&str, bool)> = windows
+        .iter()
+        .map(|(label, window)| (label.as_str(), window.is_visible().unwrap_or(false)))
+        .collect();
+    match reopen_action(&states) {
+        Reopen::Nothing => {}
+        Reopen::Show(label) => {
+            if let Some(window) = windows.get(label) {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+        Reopen::OpenNew => {
+            let _ = open_window(app, None);
+        }
+    }
+}
+
 fn open_window(app: &tauri::AppHandle, path: Option<&Path>) -> tauri::Result<()> {
     let (label, address) = if let Some(path) = path {
         let query = url::form_urlencoded::Serializer::new(String::new())
@@ -788,6 +831,8 @@ fn main() {
                         let _ = open_window(app, Some(&path));
                     }
                 }
+            } else if let tauri::RunEvent::Reopen { .. } = event {
+                reopen(app);
             }
         });
 }
@@ -795,6 +840,16 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn dock_reopen_opens_a_document_only_when_none_is_visible() {
+        assert_eq!(reopen_action(&[]), Reopen::OpenNew);
+        assert_eq!(reopen_action(&[("preview-main", true)]), Reopen::OpenNew);
+        assert_eq!(reopen_action(&[("main", false)]), Reopen::Show("main"));
+        assert_eq!(
+            reopen_action(&[("main", true), ("document-2", false)]),
+            Reopen::Nothing
+        );
+    }
     #[test]
     fn raw_utf8_round_trip_and_external_conflict() {
         let dir = tempfile::tempdir().unwrap();

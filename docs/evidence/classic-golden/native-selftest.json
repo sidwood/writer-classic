@@ -2,22 +2,30 @@
   "finished" : true,
   "golden" : {
     "backingScale" : 2,
+    "fullSizeContentView" : 1,
     "page" : {
+      "face" : "Menlo",
       "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
       "fontSize" : "16px",
       "htmlClass" : "",
+      "innerHeight" : 583,
       "innerWidth" : 735,
       "lineHeight" : "23.6026px",
       "scrollerTop" : 0,
+      "spaceEm" : 0.60204999999999997,
       "textLeft" : 14,
       "textTop" : 22
     },
+    "pageOriginBelowFrame" : 32,
     "titlebarHeight" : 32,
+    "webviewHeight" : 615,
+    "webviewSafeAreaTop" : 32,
+    "webviewTopBelowFrame" : 0,
     "webviewWidth" : 735,
     "windowHeight" : 615,
     "windowWidth" : 735
   },
-  "pid" : 49779,
+  "pid" : 79146,
   "processName" : "writer-classic",
   "windowsAtEnd" : [
     {
