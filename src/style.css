@@ -150,20 +150,21 @@ kbd {
 .cm-scroller {
   overflow: auto;
   font-family: "Classic Nitti", "Nitti Pro", Menlo, monospace !important;
-  font-size: 19px;
-  line-height: 1.58 !important;
+  font-size: var(--writer-font-size, 19px);
+  line-height: var(--writer-line-height, 27.854px) !important;
   scrollbar-color: var(--border) var(--paper);
 }
 .cm-content {
   padding: 28px 0 100px !important;
   caret-color: var(--accent);
-  max-width: 780px;
+  width: var(--writer-measure, 780px);
+  max-width: calc(100% - 44px);
   min-height: 100%;
   margin: 0 auto !important;
-  flex: 1;
+  flex: 0 0 auto !important;
 }
 .cm-line {
-  padding: 0 38px !important;
+  padding: 0 !important;
 }
 .cm-cursor,
 .cm-dropCursor {
@@ -485,12 +486,6 @@ main:has(.cm-search) footer > * {
   .format-bar button:nth-child(10),
   .format-bar button:nth-child(11) {
     display: none;
-  }
-  .cm-scroller {
-    font-size: 17px;
-  }
-  .cm-line {
-    padding-inline: 22px !important;
   }
 }
 @media (prefers-reduced-motion: reduce) {
