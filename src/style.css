@@ -155,13 +155,14 @@ kbd {
   scrollbar-color: var(--border) var(--paper);
 }
 .cm-content {
-  padding: 28px 0 100px !important;
+  /* Classic's text container inset: floor(lineHeight) − 1 above and below,
+     ceil((window − container − scroller) / 2) plus 5px line padding at the
+     side. The defaults are its 860px window. */
+  padding: var(--writer-vertical, 26px) 0 !important;
   caret-color: var(--accent);
-  /* Classic's text container is 80 glyphs wide at every size step and is not
-     narrowed to the window. */
-  width: var(--writer-measure, 780px);
+  width: var(--writer-measure, 822px);
   min-height: 100%;
-  margin: 0 auto !important;
+  margin: 0 0 0 var(--writer-left, 12px) !important;
   flex: 0 0 auto !important;
 }
 .cm-line {

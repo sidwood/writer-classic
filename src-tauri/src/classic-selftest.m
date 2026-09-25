@@ -246,9 +246,66 @@ static void selftest_run(NSWindow *window) {
     });
 }
 
+// Golden mode, WRITER_CLASSIC_GOLDEN_WIDTH=<points>: size the document window to the
+// installed Classic window, show WRITER_CLASSIC_GOLDEN_TEXT in light mode with the
+// caret parked after the text, and snapshot the web view to golden-clone.png.
+// scripts/classic-golden.sh compares that snapshot with a capture of Classic.
+static void selftest_golden(NSWindow *window, double width, double height, NSString *text) {
+    NSRect frame = window.frame;
+    frame.origin.y += frame.size.height - height;
+    frame.size = NSMakeSize(width, height);
+    [window setFrame:frame display:YES];
+    NSMenu *view = nil;
+    NSMenuItem *dark = selftest_menu_item(@"View", @"Dark Mode", &view);
+    if (dark && dark.state == NSControlStateValueOn) [view performActionForItemAtIndex:[view indexOfItem:dark]];
+    selftest_after(1.5, ^{
+        NSData *json = [NSJSONSerialization dataWithJSONObject:@[text] options:0 error:nil];
+        NSString *literal = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+        NSString *script = [NSString stringWithFormat:@"(() => {"
+            " const content = document.querySelector('.cm-content');"
+            " const view = (content.cmView ?? content.cmTile).view;"
+            " const text = %@[0];"
+            " view.dispatch({changes: {from: 0, to: view.state.doc.length, insert: text}, selection: {anchor: text.length}});"
+            " content.blur();"
+            " const scroller = document.querySelector('.cm-scroller').getBoundingClientRect();"
+            " const line = content.querySelector('.cm-line').getBoundingClientRect();"
+            " return JSON.stringify({innerWidth: window.innerWidth, htmlClass: document.documentElement.className,"
+            " fontSize: getComputedStyle(content).fontSize, lineHeight: getComputedStyle(content).lineHeight,"
+            " fontFamily: getComputedStyle(content).fontFamily,"
+            " textLeft: line.left, textTop: line.top - scroller.top, scrollerTop: scroller.top});"
+            "})()", literal];
+        WKWebView *webview = selftest_webview(window.contentView);
+        [webview evaluateJavaScript:script completionHandler:^(id result, NSError *error) {
+            NSMutableDictionary *golden = [NSMutableDictionary dictionary];
+            golden[@"windowWidth"] = @(window.frame.size.width);
+            golden[@"windowHeight"] = @(window.frame.size.height);
+            golden[@"titlebarHeight"] = @(window.frame.size.height - window.contentLayoutRect.size.height);
+            golden[@"webviewWidth"] = @(webview.bounds.size.width);
+            golden[@"backingScale"] = @(window.backingScaleFactor);
+            if ([result isKindOfClass:[NSString class]])
+                golden[@"page"] = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] ?: result;
+            if (error) golden[@"scriptError"] = error.userInfo[@"WKJavaScriptExceptionMessage"] ?: error.localizedDescription;
+            selftestReport[@"golden"] = golden;
+            selftest_after(0.8, ^{
+                selftest_snapshot(window, @"golden-clone.png", ^{ selftest_finish(); });
+            });
+        }];
+    });
+}
+
 static void selftest_wait(int attempt) {
     NSWindow *window = selftest_document_window();
     if (window && attempt >= 0) {
+        NSDictionary *environment = NSProcessInfo.processInfo.environment;
+        NSString *goldenWidth = environment[@"WRITER_CLASSIC_GOLDEN_WIDTH"];
+        if (goldenWidth.doubleValue > 0) {
+            double height = [environment[@"WRITER_CLASSIC_GOLDEN_HEIGHT"] doubleValue];
+            NSString *path = environment[@"WRITER_CLASSIC_GOLDEN_TEXT"];
+            NSString *text = path ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil] : nil;
+            return selftest_after(3.0, ^{
+                selftest_golden(window, goldenWidth.doubleValue, height > 0 ? height : 615, text ?: @"");
+            });
+        }
         // Give the page time to finish its startup work before driving it.
         return selftest_after(3.0, ^{ selftest_run(window); });
     }

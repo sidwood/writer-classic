@@ -17,31 +17,44 @@ for (const [width, fontSize, lineHeight] of [
   });
 }
 
-async function measure(page: import("@playwright/test").Page) {
-  return page
-    .getByRole("textbox", { name: "Document text" })
-    .evaluate((element) => {
-      const context = document.createElement("canvas").getContext("2d")!;
-      context.font = getComputedStyle(element).font;
-      const box = element.getBoundingClientRect();
-      return {
-        width: box.width,
-        expected: Math.ceil(context.measureText("0").width * 80 + 11),
-        left: box.left,
-        right: window.innerWidth - box.right,
-      };
-    });
+async function textBlock(page: import("@playwright/test").Page) {
+  return page.locator(".cm-scroller").evaluate((scroller) => {
+    const frame = scroller.getBoundingClientRect();
+    const content = scroller.querySelector(".cm-content")!;
+    const line = content.querySelector(".cm-line")!.getBoundingClientRect();
+    const box = content.getBoundingClientRect();
+    return {
+      left: line.left - frame.left,
+      top: line.top - frame.top,
+      width: box.width,
+      right: frame.right - box.right,
+    };
+  });
 }
 
-test("the 860px window keeps the full 80-glyph measure", async ({ page }) => {
-  await page.goto("/");
-  const editor = page.getByRole("textbox", { name: "Document text" });
-  await expect(editor).toHaveCSS("font-size", "19px");
-  const { width, expected } = await measure(page);
-  expect(width).toBe(expected);
-});
+// Classic's inset: ceil((window − container − 15) / 2) + 5 at the side and
+// floor(lineHeight) − 1 at the top, with a 0.54em Nitti Pro space.
+for (const [width, fontSize, left, top, measure] of [
+  [735, "16px", 14, 22, 693],
+  [860, "19px", 12, 26, 822],
+  [1280, "24px", 114, 32, 1038],
+] as const) {
+  test(`a ${width}px window insets ${fontSize} text ${left}px from the side and ${top}px from the top`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 640 });
+    await page.goto("/");
+    const editor = page.getByRole("textbox", { name: "Document text" });
+    await expect(editor).toHaveCSS("font-size", fontSize);
+    const block = await textBlock(page);
+    expect(block.left).toBe(left);
+    expect(block.top).toBe(top);
+    expect(block.width).toBe(measure);
+    expect(block.right).toBeGreaterThan(0);
+  });
+}
 
-test("resizing changes the type size and keeps an 80-glyph measure", async ({
+test("resizing changes the type size and keeps text inside the window", async ({
   page,
 }) => {
   await page.goto("/");
@@ -49,9 +62,9 @@ test("resizing changes the type size and keeps an 80-glyph measure", async ({
   await expect(editor).toHaveCSS("font-size", "19px");
   await page.setViewportSize({ width: 1280, height: 800 });
   await expect(editor).toHaveCSS("font-size", "24px");
-  const { width, expected, left, right } = await measure(page);
-  expect(width).toBe(expected);
-  expect(Math.abs(left - right)).toBeLessThanOrEqual(16);
-  await page.setViewportSize({ width: 700, height: 640 });
+  await page.setViewportSize({ width: 600, height: 640 });
   await expect(editor).toHaveCSS("font-size", "16px");
+  const block = await textBlock(page);
+  expect(block.left).toBe(14);
+  expect(block.right).toBeGreaterThan(0);
 });

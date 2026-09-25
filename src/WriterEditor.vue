@@ -32,7 +32,7 @@ import { tags } from "@lezer/highlight";
 import { vim, Vim, getCM } from "@replit/codemirror-vim";
 import { sentenceAt } from "./document";
 import { marksAt, type FormatMarks } from "./format-marks";
-import { classicType, textMeasure } from "./adaptive-layout";
+import { classicLayout } from "./adaptive-layout";
 import {
   detectText,
   detectionTarget,
@@ -396,20 +396,17 @@ onBeforeUnmount(() => {
   view?.destroy();
 });
 
-// Classic changes type size with the window and sets an 80-glyph measure.
+// Classic changes type size with the window and insets its text container
+// from the window edges and the title bar.
 function applyLayout() {
   const element = container.value;
   if (!element || !view) return;
-  const type = classicType(window.innerWidth);
-  element.style.setProperty("--writer-font-size", `${type.fontSize}px`);
-  element.style.setProperty("--writer-line-height", `${type.lineHeight}px`);
-  const context = document.createElement("canvas").getContext("2d");
-  if (!context) return;
-  context.font = getComputedStyle(view.contentDOM).font;
-  element.style.setProperty(
-    "--writer-measure",
-    `${textMeasure(context.measureText("0").width)}px`,
-  );
+  const layout = classicLayout(window.innerWidth);
+  element.style.setProperty("--writer-font-size", `${layout.fontSize}px`);
+  element.style.setProperty("--writer-line-height", `${layout.lineHeight}px`);
+  element.style.setProperty("--writer-left", `${layout.left}px`);
+  element.style.setProperty("--writer-measure", `${layout.textWidth}px`);
+  element.style.setProperty("--writer-vertical", `${layout.vertical}px`);
   view.requestMeasure();
 }
 

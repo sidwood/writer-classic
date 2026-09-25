@@ -1,0 +1,7 @@
+{
+  "classicWindowsBefore" : [
+    "{{721, 274}, {735, 615}}"
+  ],
+  "denied" : "ScreenCaptureKit refused Classic window 22979: The user declined TCCs for application, window, display capture",
+  "screenCaptureAccess" : false
+}

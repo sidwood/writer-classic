@@ -1,0 +1,36 @@
+{
+  "finished" : true,
+  "golden" : {
+    "backingScale" : 2,
+    "page" : {
+      "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
+      "fontSize" : "16px",
+      "htmlClass" : "",
+      "innerWidth" : 735,
+      "lineHeight" : "23.6026px",
+      "scrollerTop" : 0,
+      "textLeft" : 14,
+      "textTop" : 22
+    },
+    "titlebarHeight" : 32,
+    "webviewWidth" : 735,
+    "windowHeight" : 615,
+    "windowWidth" : 735
+  },
+  "pid" : 49779,
+  "processName" : "writer-classic",
+  "windowsAtEnd" : [
+    {
+      "contentViewClass" : "wry::wkwebview::class::wry_web_view_parent::WryWebViewParent0.55.1",
+      "title" : "Untitled",
+      "visible" : true,
+      "webview" : 1
+    },
+    {
+      "contentViewClass" : "NSView",
+      "title" : "",
+      "visible" : false,
+      "webview" : 0
+    }
+  ]
+}
