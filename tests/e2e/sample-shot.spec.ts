@@ -48,11 +48,12 @@ test("the 735 sample shot keeps Classic's gutter, type, marks, and footer", asyn
           return {
             left: box.left - frame.left,
             right: box.right - frame.left,
+            top: box.top - frame.top,
           };
         }
         node = walker.nextNode();
       }
-      return { left: 0, right: 0 };
+      return { left: 0, right: 0, top: Number.NaN };
     };
     const heading = [...line.querySelectorAll("span")].find((span) =>
       span.textContent?.includes("Morning"),
@@ -64,6 +65,15 @@ test("the 735 sample shot keeps Classic's gutter, type, marks, and footer", asyn
       wordLeft: glyph("The").left,
       morningLeft: glyph("Morning").left,
       milkLeft: glyph("milk").left,
+      shelfLeft: glyph("Shelf").left,
+      shelfTop: glyph("Shelf").top,
+      hashTop: glyph("##").top,
+      pourLeft: glyph("Pour").left,
+      pourTop: glyph("Pour").top,
+      oneTop: glyph("1.").top,
+      waitLeft: glyph("Wait").left,
+      waitTop: glyph("Wait").top,
+      twoTop: glyph("2.").top,
       quoteLeft: quote.left,
       quoteRight: quote.right,
       leaveLeft: glyph("Leave").left,
@@ -81,6 +91,12 @@ test("the 735 sample shot keeps Classic's gutter, type, marks, and footer", asyn
   expect(Math.abs(edges.wordLeft - 79)).toBeLessThanOrEqual(8);
   expect(Math.abs(edges.morningLeft - 79)).toBeLessThanOrEqual(8);
   expect(Math.abs(edges.milkLeft - 79)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.shelfLeft - 79)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.pourLeft - 79)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.waitLeft - 79)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.shelfTop - edges.hashTop)).toBeLessThanOrEqual(4);
+  expect(Math.abs(edges.pourTop - edges.oneTop)).toBeLessThanOrEqual(4);
+  expect(Math.abs(edges.waitTop - edges.twoTop)).toBeLessThanOrEqual(4);
   expect(Math.abs(edges.quoteLeft - 79)).toBeLessThanOrEqual(8);
   expect(edges.quoteLeft).toBeGreaterThan(71);
   expect(Math.abs(edges.leaveLeft - 97.5)).toBeLessThanOrEqual(8);

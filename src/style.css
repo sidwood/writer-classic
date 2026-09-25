@@ -233,6 +233,8 @@ kbd {
   width: 27px;
   margin-left: -27px;
   text-align: right;
+  white-space: nowrap;
+  overflow: visible;
   font-weight: 400;
   font-style: normal;
 }
