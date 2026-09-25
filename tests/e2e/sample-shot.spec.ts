@@ -31,43 +31,81 @@ test("the 735 sample shot keeps Classic's gutter, type, marks, and footer", asyn
       .querySelector(".cm-scroller")!
       .getBoundingClientRect();
     const line = document.querySelector(".cm-line")!;
-    const body = [...document.querySelectorAll(".cm-line")].find((item) =>
-      item.textContent?.includes("kettle"),
-    )!;
-    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-    let wordLeft = 0;
-    let node = walker.nextNode();
-    while (node) {
-      const text = node.textContent ?? "";
-      const start = text.indexOf("The");
-      if (start >= 0) {
-        const range = document.createRange();
-        range.setStart(node, start);
-        range.setEnd(node, start + "The".length);
-        wordLeft = range.getBoundingClientRect().left - frame.left;
-        break;
+    const glyph = (needle: string) => {
+      const walker = document.createTreeWalker(
+        document.querySelector(".cm-content")!,
+        NodeFilter.SHOW_TEXT,
+      );
+      let node = walker.nextNode();
+      while (node) {
+        const text = node.textContent ?? "";
+        const start = text.indexOf(needle);
+        if (start >= 0) {
+          const range = document.createRange();
+          range.setStart(node, start);
+          range.setEnd(node, start + needle.length);
+          const box = range.getBoundingClientRect();
+          return {
+            left: box.left - frame.left,
+            right: box.right - frame.left,
+          };
+        }
+        node = walker.nextNode();
       }
-      node = walker.nextNode();
-    }
+      return { left: 0, right: 0 };
+    };
     const heading = [...line.querySelectorAll("span")].find((span) =>
       span.textContent?.includes("Morning"),
     );
     const mark = document.querySelector(".cm-md-mark");
+    const quote = glyph(">");
     return {
       lineLeft: line.getBoundingClientRect().left - frame.left,
-      wordLeft,
+      wordLeft: glyph("The").left,
+      morningLeft: glyph("Morning").left,
+      milkLeft: glyph("milk").left,
+      quoteLeft: quote.left,
+      quoteRight: quote.right,
+      leaveLeft: glyph("Leave").left,
       headingWeight: heading
         ? Number.parseInt(getComputedStyle(heading).fontWeight, 10)
         : 0,
       markWeight: mark
         ? Number.parseInt(getComputedStyle(mark).fontWeight, 10)
         : 700,
+      footerHeight: document.querySelector("footer")!.getBoundingClientRect()
+        .height,
     };
   });
   expect(Math.abs(edges.lineLeft - 52)).toBeLessThanOrEqual(8);
   expect(Math.abs(edges.wordLeft - 79)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.morningLeft - 79)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.milkLeft - 79)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.quoteLeft - 79)).toBeLessThanOrEqual(8);
+  expect(edges.quoteLeft).toBeGreaterThan(71);
+  expect(Math.abs(edges.leaveLeft - 97.5)).toBeLessThanOrEqual(8);
+  expect(Math.abs(edges.footerHeight - 22)).toBeLessThanOrEqual(2);
   expect(edges.headingWeight).toBeGreaterThanOrEqual(600);
   expect(edges.markWeight).toBeLessThan(600);
+
+  await page.getByText("Morning", { exact: true }).click();
+  const headingButton = page.getByRole("button", { name: "Heading 1" });
+  await expect(headingButton).toHaveAttribute("aria-pressed", "true");
+  const headingColor = await headingButton.evaluate(
+    (element) => getComputedStyle(element).color,
+  );
+  expect(headingColor).not.toBe("rgb(0, 174, 239)");
+  expect(headingColor).toBe("rgb(28, 28, 23)");
+  await expect(page.getByRole("button", { name: "Emphasis" })).toHaveCSS(
+    "color",
+    "rgb(178, 176, 174)",
+  );
+
+  const typeface = page.getByRole("combobox", { name: "Typeface" });
+  await expect(page.locator(".workflow-choice")).toHaveCSS("opacity", "0");
+  await typeface.focus();
+  await expect(typeface).toBeFocused();
+  await expect(typeface).toHaveValue("1");
 
   const footer = page.locator("footer");
   await expect(footer).toContainText("Focus Off");

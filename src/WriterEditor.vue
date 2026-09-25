@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { visualChangeCompatibility } from "./vim-compat";
-import { Compartment, EditorSelection, EditorState } from "@codemirror/state";
+import { Compartment, EditorSelection, EditorState, Prec, type Range } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -20,7 +20,7 @@ import {
   indentWithTab,
 } from "@codemirror/commands";
 import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import {
   search,
   searchKeymap,
@@ -223,6 +223,65 @@ const highlighting = HighlightStyle.define([
   { tag: tags.strikethrough, textDecoration: "line-through" },
   { tag: tags.link, textDecoration: "underline", color: "var(--text)" },
 ]);
+// The space after a line-start heading or list mark sits in the gutter box,
+// so the word starts on the column. A quote mark stays on the column.
+function lineMarkDecorations(view: EditorView): DecorationSet {
+  const ranges: Range<Decoration>[] = [];
+  const doc = view.state.doc;
+  for (const { from, to } of view.visibleRanges) {
+    syntaxTree(view.state).iterate({
+      from,
+      to,
+      enter(node) {
+        if (
+          node.name !== "HeaderMark" &&
+          node.name !== "ListMark" &&
+          node.name !== "QuoteMark"
+        )
+          return;
+        const line = doc.lineAt(node.from);
+        if (doc.sliceString(line.from, node.from).trim() !== "") return;
+        if (node.from >= node.to) return;
+        if (node.name === "QuoteMark") {
+          ranges.push(
+            Decoration.mark({ class: "cm-md-quote" }).range(node.from, node.to),
+          );
+          return;
+        }
+        if (
+          node.name === "HeaderMark" &&
+          !/^#{1,6}$/.test(doc.sliceString(node.from, node.to))
+        )
+          return;
+        let end = node.to;
+        if (end < line.to && doc.sliceString(end, end + 1) === " ") end += 1;
+        ranges.push(
+          Decoration.mark({ class: "cm-md-gutter" }).range(node.from, end),
+        );
+      },
+    });
+  }
+  return Decoration.set(ranges, true);
+}
+const lineMarks = Prec.lowest(
+  ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      constructor(view: EditorView) {
+        this.decorations = lineMarkDecorations(view);
+      }
+      update(update: ViewUpdate) {
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          syntaxTree(update.state) !== syntaxTree(update.startState)
+        )
+          this.decorations = lineMarkDecorations(update.view);
+      }
+    },
+    { decorations: (value) => value.decorations },
+  ),
+);
 const finder = new ClassicFind();
 function reportMode() {
   const state = getCM(view)?.state.vim;
@@ -258,6 +317,7 @@ onMounted(() => {
         history(),
         markdown(),
         syntaxHighlighting(highlighting),
+        lineMarks,
         keymap.of([
           ...finder.keymap(),
           ...markdownKeymap,

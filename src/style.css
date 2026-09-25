@@ -159,8 +159,8 @@ kbd {
   flex: 1;
   overflow: hidden;
 }
-/* Workflow state: Classic's typeface and size table. Muted, and it fades with
-   the rest of the chrome while typing. */
+/* Workflow state: Classic's typeface and size table. Hidden unless hovered
+   or focused; the drawn face stays Menlo when Nitti is not installed. */
 .workflow-choice {
   position: absolute;
   right: 18px;
@@ -171,7 +171,12 @@ kbd {
     BlinkMacSystemFont,
     sans-serif;
   color: var(--muted);
+  opacity: 0;
   transition: opacity 0.45s ease-out;
+}
+.workflow-choice:hover,
+.workflow-choice:focus-within {
+  opacity: 1;
 }
 .workflow-choice select {
   appearance: none;
@@ -219,13 +224,23 @@ kbd {
   padding: 0 0 0 27px !important;
 }
 .cm-md-mark {
+  font-weight: 400;
+  font-style: normal;
+  color: #5c5c58;
+}
+.cm-md-gutter {
   display: inline-block;
   width: 27px;
   margin-left: -27px;
   text-align: right;
   font-weight: 400;
   font-style: normal;
-  color: #5c5c58;
+}
+.cm-md-quote {
+  display: inline;
+  width: auto;
+  margin: 0;
+  text-align: left;
 }
 .dark .cm-md-mark {
   color: var(--muted);
@@ -355,7 +370,10 @@ kbd {
   border: 1px solid var(--border) !important;
 }
 footer {
-  min-height: 29px;
+  height: 22px;
+  min-height: 22px;
+  max-height: 22px;
+  flex: 0 0 22px;
   display: flex;
   align-items: stretch;
   background: #ededed;
@@ -371,7 +389,8 @@ footer {
 footer button {
   border: none;
   background: transparent;
-  padding: 5px 9px;
+  padding: 0 9px;
+  line-height: 21px;
   white-space: nowrap;
 }
 footer button:hover,
@@ -388,7 +407,7 @@ footer button[aria-pressed="true"] {
   color: #b2b0ae;
 }
 .format-bar button {
-  padding: 5px 8px;
+  padding: 0 8px;
   font-weight: 600;
   color: #b2b0ae;
 }
@@ -397,13 +416,16 @@ footer button[aria-pressed="true"] {
   color: var(--muted);
 }
 .dark footer button:hover,
-.dark footer button[aria-pressed="true"],
-.dark .format-bar button[aria-pressed="true"] {
+.dark footer button[aria-pressed="true"] {
   color: var(--accent);
 }
 .format-bar button[aria-pressed="true"] {
-  color: var(--accent);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  color: #1c1c17;
+  box-shadow: none;
+}
+.dark .format-bar button[aria-pressed="true"] {
+  color: var(--text);
+  box-shadow: none;
 }
 .bold {
   font-weight: 800 !important;
@@ -421,7 +443,8 @@ footer button[aria-pressed="true"] {
   white-space: nowrap;
 }
 .statistics span {
-  padding: 6px 12px;
+  padding: 0 12px;
+  line-height: 21px;
   min-width: 70px;
   border-left: 1px solid var(--border);
 }
