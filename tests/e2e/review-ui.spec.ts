@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 test("Vim Control commands remain editor commands and indicators remain visible", async ({
   page,
 }) => {

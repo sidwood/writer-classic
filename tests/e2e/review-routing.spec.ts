@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 
 function install(
   page: import("@playwright/test").Page,

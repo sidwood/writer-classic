@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 import { readFile } from "node:fs/promises";
 
 test("cancelled and failed native saves abort close; success closes only after write", async ({

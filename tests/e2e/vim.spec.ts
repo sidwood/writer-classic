@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 
 test("Vim defaults on, lives only in Edit as a checkbox, and explicit off survives reload", async ({
   page,

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 
 for (const [width, fontSize, lineHeight] of [
   [849, "16px", "23.6026px"],

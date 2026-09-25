@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 for (const exit of ["Control+[", "Control+c"])
   test(`visual change ends undo grouping on ${exit}`, async ({ page }) => {
     await page.goto("/");

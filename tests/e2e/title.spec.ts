@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 
 for (const width of [860, 1280]) {
   test(`browser title is centered with Markdown icon immediately to its left at ${width}px`, async ({

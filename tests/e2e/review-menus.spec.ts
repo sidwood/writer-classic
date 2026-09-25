@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 
 async function menu(page: Page, name: string, item: string) {
   const details = page

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./support/fresh-storage";
 
 const editor = (page: Page) =>
   page.getByRole("textbox", { name: "Document text" });
