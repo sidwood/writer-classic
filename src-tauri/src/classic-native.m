@@ -7,6 +7,7 @@
 static char titleKey;
 static char resizeKey;
 static char centeringKey;
+static char folderKey;
 static void (*classic_menu_action_handler)(void *, const char *) = NULL;
 
 void classic_set_menu_action(void (*handler)(void *, const char *)) {
@@ -37,10 +38,17 @@ static void classic_show_version_menu(NSWindow *window) {
 
 @interface NSWindow (ClassicTitleMenu)
 - (void)classicTitleMenu:(NSMenuItem *)item;
+- (void)classicRevealInFinder:(id)sender;
 @end
 @implementation NSWindow (ClassicTitleMenu)
 - (void)classicTitleMenu:(NSMenuItem *)item {
     classic_send_menu(self, [item.representedObject UTF8String]);
+}
+- (void)classicRevealInFinder:(id)sender {
+    (void)sender;
+    NSString *path = self.representedURL.path;
+    if (!path.length) return;
+    [[NSWorkspace sharedWorkspace] selectFile:path inFileViewerRootedAtPath:@""];
 }
 @end
 
@@ -96,6 +104,21 @@ void classic_center_title(NSWindow *window) {
         proxy.frame = NSMakeRect(0, 1, 18, 18);
         proxy.hidden = NO;
     }
+    NSButton *folder = objc_getAssociatedObject(window, &folderKey);
+    if (!folder) {
+        NSImage *image = [[NSImage imageNamed:NSImageNameFolder] copy];
+        image.template = YES;
+        image.size = NSMakeSize(18, 18);
+        folder = [NSButton buttonWithImage:image target:window action:@selector(classicRevealInFinder:)];
+        folder.bordered = NO;
+        folder.imageScaling = NSImageScaleProportionallyDown;
+        folder.contentTintColor = [NSColor colorWithWhite:0.67 alpha:1];
+        folder.translatesAutoresizingMaskIntoConstraints = YES;
+        [bar addSubview:folder];
+        objc_setAssociatedObject(window, &folderKey, folder, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    folder.hidden = window.representedURL.path.length == 0;
+    folder.frame = NSMakeRect(bar.bounds.size.width - 26, (bar.bounds.size.height - 18) / 2, 18, 18);
     objc_setAssociatedObject(window, &centeringKey, nil, OBJC_ASSOCIATION_ASSIGN);
 }
 

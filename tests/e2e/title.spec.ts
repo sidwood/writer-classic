@@ -23,6 +23,11 @@ for (const width of [860, 1280]) {
     await page.getByRole("textbox", { name: "Document text" }).fill("Changed");
     await expect(title).toHaveText("A document title.md");
     await expect(page).toHaveTitle("A document title.md");
+    const finder = page.getByRole("button", { name: "Show in Finder" });
+    await expect(finder).toBeVisible();
+    expect(
+      await finder.evaluate((button) => button.closest(".browser-title")),
+    ).toBeNull();
     const cluster = (await page.locator(".browser-title").boundingBox())!;
     expect(Math.abs(cluster.x + cluster.width / 2 - width / 2)).toBeLessThan(1);
     const iconBox = (await icon.boundingBox())!,
@@ -36,4 +41,7 @@ test("browser tab title is the document title before any edit", async ({
 }) => {
   await page.goto("/");
   await expect(page).toHaveTitle("Untitled");
+  await expect(page.getByRole("button", { name: "Show in Finder" })).toHaveCount(
+    0,
+  );
 });

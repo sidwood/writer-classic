@@ -133,6 +133,22 @@ kbd {
   flex: none;
   object-fit: contain;
 }
+.show-in-finder {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #aaa;
+}
+.show-in-finder svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
 .document-title {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1269,6 +1269,15 @@ onBeforeUnmount(() => {
           :draggable="false"
         /><span class="document-title">{{ doc.title }}</span></span
       >
+      <button
+        v-if="doc.title !== 'Untitled'"
+        class="show-in-finder"
+        aria-label="Show in Finder"
+      >
+        <svg viewBox="0 0 18 16" aria-hidden="true">
+          <path fill="currentColor" d="M1 4h5.2L7.5 2.2H17V14H1z" />
+        </svg>
+      </button>
     </nav>
     <input ref="fileInput" type="file" hidden @change="browserOpen" />
     <div v-if="error" role="alert" class="error-message">
