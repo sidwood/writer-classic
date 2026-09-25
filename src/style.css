@@ -203,7 +203,81 @@ kbd {
   font:
     12px -apple-system,
     sans-serif;
-  padding: 8px 30px 8px 12px;
+  padding: 6px 12px;
+}
+.classic-find-row,
+.classic-find-replace {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.classic-find-replace {
+  margin-top: 6px;
+}
+.classic-find-replace[hidden] {
+  display: none;
+}
+.classic-find input,
+.classic-find select,
+.classic-find button,
+.classic-find summary {
+  font: inherit;
+  color: var(--text);
+}
+.classic-find-field {
+  flex: 1;
+  min-width: 120px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.classic-find button {
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--chrome);
+}
+.classic-find-count {
+  min-width: 64px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.classic-find-option {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.classic-find-options {
+  position: relative;
+}
+.classic-find-options summary {
+  cursor: default;
+  list-style: none;
+  padding: 2px 6px;
+}
+.classic-find-menu {
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  right: 0;
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--chrome);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}
+.cm-searchMatch {
+  background: rgb(255 230 0 / 25%) !important;
+  outline: none !important;
+}
+.cm-searchMatch.cm-searchMatch-selected {
+  background: #ffe600 !important;
+  color: #202124;
 }
 .cm-textfield {
   background: var(--paper) !important;
@@ -289,7 +363,8 @@ footer button[aria-pressed="true"] {
 .chrome-hidden footer:not(:hover):not(:focus-within) > :not(.vim-mode) {
   opacity: 0;
 }
-main:has(.cm-search) footer {
+main:has(.cm-search) footer,
+main:has(.cm-search) footer > * {
   opacity: 1 !important;
 }
 .error-message {

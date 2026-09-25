@@ -24,12 +24,10 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import {
   search,
   searchKeymap,
-  openSearchPanel,
-  findNext,
-  findPrevious,
   SearchQuery,
   setSearchQuery,
 } from "@codemirror/search";
+import { ClassicFind } from "./find-panel";
 import { tags } from "@lezer/highlight";
 import { vim, Vim, getCM } from "@replit/codemirror-vim";
 import { sentenceAt } from "./document";
@@ -191,14 +189,15 @@ const sentenceFocus = ViewPlugin.fromClass(
   { decorations: (value) => value.decorations },
 );
 
+// Auto Markdown keeps its markers in the style of the text they format.
 const highlighting = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "bold" },
   { tag: tags.strong, fontWeight: "bold" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
   { tag: tags.link, textDecoration: "underline", color: "var(--text)" },
-  { tag: tags.processingInstruction, color: "var(--muted)" },
 ]);
+const finder = new ClassicFind();
 function reportMode() {
   const state = getCM(view)?.state.vim;
   emit(
@@ -234,13 +233,21 @@ onMounted(() => {
         markdown(),
         syntaxHighlighting(highlighting),
         keymap.of([
+          ...finder.keymap(),
           ...markdownKeymap,
           ...defaultKeymap,
           ...historyKeymap,
-          ...searchKeymap,
+          ...searchKeymap.filter(
+            (binding) => !["Mod-f", "Mod-g", "Escape"].includes(binding.key!),
+          ),
           indentWithTab,
         ]),
-        search({ top: true }),
+        search({
+          top: true,
+          caseSensitive: false,
+          literal: true,
+          createPanel: finder.createPanel,
+        }),
         EditorView.lineWrapping,
         EditorView.contentAttributes.of({
           "aria-label": "Document text",
@@ -451,14 +458,16 @@ function command(action: string) {
       redo(view);
       break;
     case "find":
+      finder.open(view);
+      break;
     case "replace":
-      openSearchPanel(view);
+      finder.open(view, true);
       break;
     case "find-next":
-      findNext(view);
+      finder.step(view, true);
       break;
     case "find-previous":
-      findPrevious(view);
+      finder.step(view, false);
       break;
     case "selection-find": {
       const { from, to } = view.state.selection.main;
@@ -467,7 +476,7 @@ function command(action: string) {
           new SearchQuery({ search: view.state.sliceDoc(from, to) }),
         ),
       });
-      openSearchPanel(view);
+      finder.open(view);
       break;
     }
     case "next-sentence":

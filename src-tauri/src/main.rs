@@ -154,6 +154,42 @@ fn set_menu_checked(app: tauri::AppHandle, id: String, checked: bool) -> Result<
 }
 
 #[tauri::command]
+fn set_menu_text(app: tauri::AppHandle, id: String, text: String) -> Result<(), String> {
+    let menu = app.menu().ok_or("Application menu is unavailable")?;
+    for item in menu.items().map_err(|e| e.to_string())? {
+        if let Some(item) = item.as_submenu().and_then(|menu| menu.get(&id)) {
+            if let Some(item) = item.as_menuitem() {
+                return item.set_text(text).map_err(|e| e.to_string());
+            }
+        }
+    }
+    Err(format!("{id} menu item is unavailable"))
+}
+
+/// Close All reaches document windows only; previews are not documents.
+fn document_labels<'a>(labels: &[&'a str]) -> Vec<&'a str> {
+    labels
+        .iter()
+        .copied()
+        .filter(|label| !label.starts_with("preview-"))
+        .collect()
+}
+
+/// Each document runs its own Close, so unsaved changes still ask Save, Don't Save, or Cancel.
+#[tauri::command]
+fn close_all_documents(app: tauri::AppHandle) {
+    let windows = app.webview_windows();
+    let labels: Vec<&str> = windows.keys().map(String::as_str).collect();
+    for label in document_labels(&labels) {
+        let _ = app.emit_to(
+            tauri::EventTarget::webview_window(label),
+            "menu-action",
+            "close",
+        );
+    }
+}
+
+#[tauri::command]
 fn set_recent_files(app: tauri::AppHandle, paths: Vec<String>) -> Result<(), String> {
     use tauri::menu::MenuItem;
     let menu = app.menu().ok_or("Application menu is unavailable")?;
@@ -282,6 +318,7 @@ enum MenuRoute<'a> {
     QuitAll,
     Help,
     RestoreVim,
+    CloseAll,
     CloseWindow(&'a str),
     Document(&'a str),
     Drop,
@@ -293,6 +330,9 @@ fn menu_route<'a>(command: &str, focused: Option<&'a str>, labels: &[&'a str]) -
     }
     if command == "help" {
         return MenuRoute::Help;
+    }
+    if command == "close-all" {
+        return MenuRoute::CloseAll;
     }
     let Some(focused) = focused else {
         return if command == "vim" {
@@ -336,6 +376,7 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     application.append(&PredefinedMenuItem::services(app, None)?)?;
     application.append(&PredefinedMenuItem::hide(app, None)?)?;
     application.append(&PredefinedMenuItem::hide_others(app, None)?)?;
+    application.append(&PredefinedMenuItem::show_all(app, Some("Show All"))?)?;
     application.append(&MenuItem::with_id(
         app,
         "quit",
@@ -350,6 +391,7 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         ("open", "Open…", "CmdOrCtrl+O"),
         ("duplicate", "Duplicate", "CmdOrCtrl+Shift+S"),
         ("close", "Close", "CmdOrCtrl+W"),
+        ("close-all", "Close All", "CmdOrCtrl+Alt+W"),
         ("save", "Save", "CmdOrCtrl+S"),
         ("save-as", "Save As…", "CmdOrCtrl+Alt+Shift+S"),
         ("import", "Import…", "CmdOrCtrl+Shift+I"),
@@ -409,20 +451,33 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     ] {
         edit.append(&MenuItem::with_id(app, id, text, true, Some(key))?)?;
     }
+    // Option-Command-Left/Right move by sentence in the webview shortcut map;
+    // an accelerator here would move the caret twice.
+    for (id, text) in [
+        ("next-sentence", "Next Sentence"),
+        ("previous-sentence", "Previous Sentence"),
+    ] {
+        edit.append(&MenuItem::with_id(app, id, text, true, None::<&str>)?)?;
+    }
     let spelling = Submenu::new(app, "Spelling and Grammar", true)?;
-    for (id, title) in [
-        ("spelling-panel", "Show Spelling and Grammar"),
-        ("check-spelling", "Check Document Now"),
-        ("spellcheck", "Check Spelling While Typing"),
-        ("grammar", "Check Grammar With Spelling"),
-        ("correction", "Correct Spelling Automatically"),
+    // Command-: is Shift-Command-; on the keyboard.
+    for (id, title, key) in [
+        (
+            "spelling-panel",
+            "Show Spelling and Grammar",
+            Some("CmdOrCtrl+Shift+;"),
+        ),
+        ("check-spelling", "Check Document Now", Some("CmdOrCtrl+;")),
+        ("spellcheck", "Check Spelling While Typing", None),
+        ("grammar", "Check Grammar With Spelling", None),
+        ("correction", "Correct Spelling Automatically", None),
     ] {
         spelling.append(&MenuItem::with_id(
             app,
             format!("service-{id}"),
             title,
             true,
-            None::<&str>,
+            key,
         )?)?;
     }
     edit.append(&spelling)?;
@@ -513,9 +568,9 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     root.append(&format)?;
     let view = Submenu::new(app, "View", true)?;
     for (id, text, key) in [
-        ("focus", "Focus Mode", "CmdOrCtrl+D"),
-        ("preview", "Preview", "CmdOrCtrl+R"),
-        ("format-bar", "Format Bar", "CmdOrCtrl+Alt+T"),
+        ("focus", "Enter Focus Mode", "CmdOrCtrl+D"),
+        ("preview", "Show Preview", "CmdOrCtrl+R"),
+        ("format-bar", "Hide Format Bar", "CmdOrCtrl+Alt+T"),
         ("fullscreen", "Full Screen", "Ctrl+Super+F"),
         ("dark", "Dark Mode", "CmdOrCtrl+Alt+D"),
     ] {
@@ -560,6 +615,7 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
             MenuRoute::RestoreVim => {
                 let _ = set_vim_checked(app.clone(), vim_preference(app));
             }
+            MenuRoute::CloseAll => close_all_documents(app.clone()),
             MenuRoute::CloseWindow(label) => {
                 if let Some(window) = windows.get(label) {
                     let _ = window.close();
@@ -642,6 +698,8 @@ fn main() {
             classic_font,
             set_vim_checked,
             set_menu_checked,
+            set_menu_text,
+            close_all_documents,
             set_recent_files,
             lifecycle::request_quit,
             lifecycle::quit_ready,
@@ -772,6 +830,34 @@ mod tests {
             menu_route("bold", Some("preview-missing"), &labels),
             MenuRoute::Drop
         );
+    }
+    #[test]
+    fn close_all_reaches_every_document_but_no_preview() {
+        let labels = ["main", "document-2", "preview-main", "preview-gone"];
+        for focused in [None, Some("preview-main"), Some("document-2")] {
+            assert_eq!(
+                menu_route("close-all", focused, &labels),
+                MenuRoute::CloseAll
+            );
+        }
+        assert_eq!(document_labels(&labels), vec!["main", "document-2"]);
+    }
+    #[test]
+    fn menu_declares_classic_commands_and_dynamic_view_titles() {
+        let menu = fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs")).unwrap();
+        for item in [
+            "PredefinedMenuItem::show_all(app, Some(\"Show All\"))",
+            "(\"close-all\", \"Close All\", \"CmdOrCtrl+Alt+W\")",
+            "(\"next-sentence\", \"Next Sentence\")",
+            "(\"previous-sentence\", \"Previous Sentence\")",
+            "Some(\"CmdOrCtrl+Shift+;\")",
+            "Some(\"CmdOrCtrl+;\")",
+            "(\"focus\", \"Enter Focus Mode\", \"CmdOrCtrl+D\")",
+            "(\"preview\", \"Show Preview\", \"CmdOrCtrl+R\")",
+            "(\"format-bar\", \"Hide Format Bar\", \"CmdOrCtrl+Alt+T\")",
+        ] {
+            assert!(menu.contains(item), "{item}");
+        }
     }
     #[test]
     fn document_window_title_uses_the_file_name() {

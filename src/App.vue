@@ -19,7 +19,7 @@ import {
 import { open, save } from "@tauri-apps/plugin-dialog";
 import DOMPurify from "dompurify";
 import WriterEditor from "./WriterEditor.vue";
-import { WriterDocument, statistics } from "./document";
+import { WriterDocument, pausedStatistics, statistics } from "./document";
 import type { FormatMarks } from "./format-marks";
 import { htmlDocument, renderMarkdown } from "./markdown";
 import { exportDocx, exportRtf, importDocx } from "./export";
@@ -140,7 +140,13 @@ const recent = ref<string[]>(
   JSON.parse(localStorage.getItem("writer-classic.recent") ?? "[]"),
 );
 const fileInput = ref<HTMLInputElement>();
-const stats = computed(() => statistics(selection.value || doc.text));
+const documentStats = ref(statistics(""));
+const documentFigures = pausedStatistics(
+  (figures) => (documentStats.value = figures),
+);
+const stats = computed(() =>
+  selection.value ? statistics(selection.value) : documentStats.value,
+);
 let autosave: ReturnType<typeof setTimeout>;
 let editEpoch = 0;
 let previewTimer: ReturnType<typeof setTimeout>;
@@ -244,6 +250,7 @@ function persistDraft() {
 function changed(text: string) {
   editEpoch++;
   doc.edit(text);
+  documentFigures.later(text);
   chromeHidden.value = true;
   persistDraft();
   scheduleAutosave();
@@ -269,6 +276,7 @@ function applyDocument(
   doc.text = text;
   doc.savedText = savedText;
   selection.value = "";
+  documentFigures.now(text);
   generation.value++;
   persistDraft();
   noteScriptDocument();
@@ -669,6 +677,9 @@ async function action(command: string) {
         return await cloudOperation("move");
       case "close":
         return await closeDocument();
+      case "close-all":
+        if (native) return await invoke("close_all_documents");
+        return await closeDocument();
       case "quit":
         return native ? await invoke("request_quit") : await closeDocument();
       case "save-close":
@@ -770,6 +781,7 @@ function shortcuts(event: KeyboardEvent) {
         arrowleft: "previous-sentence",
         backspace: "clear",
         s: "save-as",
+        w: "close-all",
         p: "print-formatted",
       } as Record<string, string>
     )[key];
@@ -804,6 +816,13 @@ function shortcuts(event: KeyboardEvent) {
         } as Record<string, string>
       )[key] || (/^[1-6]$/.test(key) ? `heading-${key}` : undefined);
   if (event.ctrlKey && event.metaKey && key === "f") command = "fullscreen";
+  if (event.ctrlKey && event.metaKey && key === "d") {
+    // Look Up in Dictionary is a system service; the browser has none.
+    event.preventDefault();
+    event.stopPropagation();
+    if (native) void action("service-dictionary");
+    return;
+  }
   if (command) {
     event.preventDefault();
     event.stopPropagation();
@@ -837,6 +856,17 @@ for (const [flag, key, id] of [
 watch(formatBar, (enabled) =>
   localStorage.setItem("writer-classic.format", String(enabled)),
 );
+const viewLabels = computed(() => ({
+  focus: `${focus.value ? "Exit" : "Enter"} Focus Mode`,
+  preview: `${preview.value ? "Hide" : "Show"} Preview`,
+  "format-bar": `${formatBar.value ? "Hide" : "Show"} Format Bar`,
+}));
+async function syncViewMenu() {
+  if (!native || !(await getCurrentWindow().isFocused())) return;
+  for (const [id, text] of Object.entries(viewLabels.value))
+    await invoke("set_menu_text", { id, text });
+}
+watch(viewLabels, () => void syncViewMenu().catch(showError));
 function noteScriptDocument() {
   if (!native) return;
   void invoke("script_note_document", {
@@ -910,6 +940,7 @@ onMounted(async () => {
       noteScriptDocument();
       await invoke("set_vim_checked", { checked: vim.value });
       await invoke("set_recent_files", { paths: recent.value });
+      await syncViewMenu();
       cleanups.push(
         await getCurrentWebviewWindow().listen("quit-request", async () => {
           if (quitting) return;
@@ -922,8 +953,9 @@ onMounted(async () => {
       );
       cleanups.push(
         await getCurrentWindow().onFocusChanged((event) => {
-          if (event.payload)
-            void invoke("set_vim_checked", { checked: vim.value });
+          if (!event.payload) return;
+          void invoke("set_vim_checked", { checked: vim.value });
+          void syncViewMenu().catch(showError);
         }),
       );
       if (label === "main") {
@@ -1036,6 +1068,7 @@ onBeforeUnmount(() => {
   if (native) void invoke("script_forget_document").catch(() => {});
   clearTimeout(autosave);
   clearTimeout(previewTimer);
+  documentFigures.cancel();
   cleanups.forEach((fn) => fn());
   window.removeEventListener("keydown", shortcuts, true);
   window.removeEventListener("storage", preferenceChanged);
@@ -1130,7 +1163,10 @@ onBeforeUnmount(() => {
           ><button @click="action('icloud-open')">Open from iCloud…</button
           ><button @click="action('icloud-save')">Save to iCloud…</button
           ><button @click="action('icloud-move')">Move to iCloud</button
-          ><button @click="action('close')">Close <kbd>⌘W</kbd></button>
+          ><button @click="action('close')">Close <kbd>⌘W</kbd></button
+          ><button @click="action('close-all')">
+            Close All <kbd>⌥⌘W</kbd>
+          </button>
         </div>
       </details>
       <details>
@@ -1141,6 +1177,11 @@ onBeforeUnmount(() => {
           ><button @click="action('find')">Find…</button
           ><button @click="action('replace')">Find and Replace…</button
           ><button @click="action('copy-html')">Copy HTML</button>
+          <button @click="action('next-sentence')">
+            Next Sentence <kbd>⌥⌘→</kbd></button
+          ><button @click="action('previous-sentence')">
+            Previous Sentence <kbd>⌥⌘←</kbd>
+          </button>
           <button @click="action('delete')">Delete</button>
           <button
             role="menuitemcheckbox"
@@ -1176,13 +1217,13 @@ onBeforeUnmount(() => {
         <summary>View</summary>
         <div class="menu-items">
           <button @click="action('focus')">
-            {{ focus ? "Exit" : "Enter" }} Focus Mode <kbd>⌘D</kbd>
+            {{ viewLabels.focus }} <kbd>⌘D</kbd>
           </button>
           <button @click="action('preview')">
-            {{ preview ? "Hide" : "Show" }} Preview <kbd>⌘R</kbd>
+            {{ viewLabels.preview }} <kbd>⌘R</kbd>
           </button>
           <button @click="action('format-bar')">
-            {{ formatBar ? "Hide" : "Show" }} Format Bar
+            {{ viewLabels["format-bar"] }} <kbd>⌥⌘T</kbd>
           </button>
           <button @click="action('fullscreen')">Full Screen</button>
           <button
@@ -1280,7 +1321,7 @@ onBeforeUnmount(() => {
           @mousedown.prevent
           @click="action('italic')"
         >
-          I
+          /
         </button>
         <button
           class="strike"

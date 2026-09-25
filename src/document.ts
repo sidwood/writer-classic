@@ -35,6 +35,28 @@ export function statistics(text: string) {
   return { words, characters, time };
 }
 
+export type Statistics = ReturnType<typeof statistics>;
+/** Document figures wait for a pause in typing before they recalculate. */
+export function pausedStatistics(
+  report: (figures: Statistics) => void,
+  delay = 3000,
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return {
+    now(text: string) {
+      clearTimeout(timer);
+      report(statistics(text));
+    },
+    later(text: string) {
+      clearTimeout(timer);
+      timer = setTimeout(() => report(statistics(text)), delay);
+    },
+    cancel() {
+      clearTimeout(timer);
+    },
+  };
+}
+
 export function sentenceAt(text: string, position: number) {
   const segments = new Intl.Segmenter(undefined, {
     granularity: "sentence",

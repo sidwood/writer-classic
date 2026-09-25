@@ -152,12 +152,12 @@ test("find/replace, export HTML, RTF and DOCX, then import DOCX", async ({
   page,
 }) => {
   await editor(page).fill("# Notes\n\nA **strong** word.");
-  await page.keyboard.press("Meta+f");
+  await page.keyboard.press("Meta+Alt+f");
   await page.getByRole("textbox", { name: "Find", exact: true }).fill("word");
   await page
-    .getByRole("textbox", { name: "Replace", exact: true })
+    .getByRole("textbox", { name: "Replace with", exact: true })
     .fill("sentence");
-  await page.getByRole("button", { name: "replace all", exact: true }).click();
+  await page.getByRole("button", { name: "Replace All", exact: true }).click();
   await expect(editor(page)).toContainText("sentence");
   let docxPath = "";
   for (const type of ["html", "rtf", "docx"]) {
