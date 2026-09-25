@@ -229,7 +229,7 @@ kbd {
   width: 27px;
   margin-left: -27px;
   text-align: right;
-  white-space: nowrap;
+  white-space: pre;
   overflow: visible;
   font-weight: 400;
   font-style: normal;
@@ -259,6 +259,18 @@ kbd {
 .cm-cursor,
 .cm-dropCursor {
   border-left: 2px solid var(--accent) !important;
+}
+.writer-editor[data-vim-mode="NORMAL"] .cm-focused .cm-fat-cursor {
+  background: var(--accent);
+}
+.writer-editor[data-vim-mode="NORMAL"] .cm-focused .cm-fat-cursor:not([style*="color: transparent"]) {
+  color: var(--text) !important;
+}
+.dark .writer-editor[data-vim-mode="NORMAL"] .cm-focused .cm-fat-cursor:not([style*="color: transparent"]) {
+  color: var(--paper) !important;
+}
+.writer-editor[data-vim-mode="NORMAL"] .cm-editor:not(.cm-focused) .cm-fat-cursor {
+  outline-color: var(--accent);
 }
 .cm-focused .cm-selectionBackground,
 .cm-selectionBackground {

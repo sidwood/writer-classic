@@ -290,20 +290,19 @@ const lineMarks = Prec.lowest(
 const finder = new ClassicFind();
 function reportMode() {
   const state = getCM(view)?.state.vim;
-  emit(
-    "mode",
-    !props.vim
-      ? ""
-      : state?.insertMode
-        ? "INSERT"
-        : state?.visualMode
-          ? state.visualBlock
-            ? "VISUAL BLOCK"
-            : state.visualLine
-              ? "VISUAL LINE"
-              : "VISUAL"
-          : "NORMAL",
-  );
+  const mode = !props.vim
+    ? ""
+    : state?.insertMode
+      ? "INSERT"
+      : state?.visualMode
+        ? state.visualBlock
+          ? "VISUAL BLOCK"
+          : state.visualLine
+            ? "VISUAL LINE"
+            : "VISUAL"
+        : "NORMAL";
+  if (container.value) container.value.dataset.vimMode = mode;
+  emit("mode", mode);
 }
 onMounted(() => {
   Vim.defineEx("write", "w", () => emit("command", "save"));
