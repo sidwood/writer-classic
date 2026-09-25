@@ -297,6 +297,39 @@ pub fn focus_editor_window(window: tauri::Window) -> Result<bool, String> {
     Ok(unsafe { classic_focus_webview(pointer) } == 1)
 }
 
+/// Prints with a header and page numbers, as Classic does.
+#[tauri::command]
+pub fn prepare_print() -> Result<(), String> {
+    use objc2::MainThreadMarker;
+    let _main = MainThreadMarker::new().ok_or("Printing requires the main thread")?;
+    unsafe extern "C" {
+        fn classic_prepare_print();
+    }
+    unsafe { classic_prepare_print() }
+    Ok(())
+}
+
+/// Front-to-back position of a visible window, or None when it is hidden.
+pub fn front_order(window: &tauri::WebviewWindow) -> Option<i64> {
+    unsafe extern "C" {
+        fn classic_front_order(window: *mut std::ffi::c_void) -> std::ffi::c_long;
+    }
+    let pointer = window.ns_window().ok()?;
+    let order = unsafe { classic_front_order(pointer) };
+    (order >= 0).then_some(order as i64)
+}
+
+/// Names the running process for the Dock and menu bar. A bare debug executable
+/// otherwise shows its file name.
+pub fn set_display_name(name: &str) {
+    unsafe extern "C" {
+        fn classic_set_display_name(name: *const std::ffi::c_char);
+    }
+    if let Ok(name) = std::ffi::CString::new(name) {
+        unsafe { classic_set_display_name(name.as_ptr()) }
+    }
+}
+
 /// True while this window is the main window, including during menu tracking.
 pub fn is_main_window(window: &tauri::WebviewWindow) -> bool {
     unsafe extern "C" {

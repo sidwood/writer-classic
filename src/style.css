@@ -157,8 +157,9 @@ kbd {
 .cm-content {
   padding: 28px 0 100px !important;
   caret-color: var(--accent);
+  /* Classic's text container is 80 glyphs wide at every size step and is not
+     narrowed to the window. */
   width: var(--writer-measure, 780px);
-  max-width: calc(100% - 44px);
   min-height: 100%;
   margin: 0 auto !important;
   flex: 0 0 auto !important;
@@ -510,6 +511,21 @@ main:has(.cm-search) footer > * {
   :root,
   :root.dark {
     background: white;
+  }
+  .print-header {
+    margin-bottom: 18px;
+    font:
+      11px -apple-system,
+      sans-serif;
+    color: #646464;
+  }
+  /* Browser page numbers. The native app prints its header and page numbers
+     through AppKit (NSPrintHeaderAndFooter). */
+  @page {
+    @bottom-center {
+      content: counter(page);
+      font: 11px sans-serif;
+    }
   }
 }
 .versions-browser {

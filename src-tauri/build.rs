@@ -1,7 +1,11 @@
 fn main() {
     let out = std::env::var("OUT_DIR").unwrap();
     let mut objects = Vec::new();
-    for source in ["src/classic-native.m", "src/classic-scripting.m"] {
+    for source in [
+        "src/classic-native.m",
+        "src/classic-scripting.m",
+        "src/classic-selftest.m",
+    ] {
         let object = format!(
             "{out}/{}.o",
             source.trim_start_matches("src/").trim_end_matches(".m")
@@ -24,5 +28,6 @@ fn main() {
     println!("cargo:rustc-link-search=native={out}");
     println!("cargo:rustc-link-lib=static=classic-native");
     println!("cargo:rustc-link-lib=framework=Cocoa");
+    println!("cargo:rustc-link-lib=framework=WebKit");
     tauri_build::build()
 }

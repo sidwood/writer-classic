@@ -324,10 +324,14 @@ enum MenuRoute<'a> {
     Drop,
 }
 
-/// The key window owns a menu command. AppKit clears it while a menu is open,
-/// so the main window, which stays set, is the fallback.
-fn menu_focus<'a>(key: Option<&'a str>, main: Option<&'a str>) -> Option<&'a str> {
-    key.or(main)
+/// The key window owns a menu command. AppKit can clear it while a menu is open,
+/// so the main window is next, then the frontmost visible document window.
+fn menu_focus<'a>(
+    key: Option<&'a str>,
+    main: Option<&'a str>,
+    front: Option<&'a str>,
+) -> Option<&'a str> {
+    key.or(main).or(front)
 }
 
 fn menu_route<'a>(command: &str, focused: Option<&'a str>, labels: &[&'a str]) -> MenuRoute<'a> {
@@ -622,7 +626,15 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
             .values()
             .find(|window| macos::is_main_window(window))
             .map(|window| window.label().to_string());
-        let focused = menu_focus(key.as_deref(), main.as_deref());
+        let front = windows
+            .values()
+            .filter(|window| !window.label().starts_with("preview-"))
+            .filter_map(|window| {
+                macos::front_order(window).map(|order| (order, window.label().to_string()))
+            })
+            .min()
+            .map(|(_, label)| label);
+        let focused = menu_focus(key.as_deref(), main.as_deref(), front.as_deref());
         match menu_route(command, focused, &label_refs) {
             MenuRoute::QuitAll => {
                 let _ = lifecycle::request_quit(app.clone(), app.state());
@@ -725,6 +737,7 @@ fn main() {
             macos::text_service,
             macos::set_document_header,
             macos::focus_editor_window,
+            macos::prepare_print,
             macos::list_versions,
             macos::save_version,
             macos::remove_version,
@@ -741,9 +754,18 @@ fn main() {
             macos::script_forget_document
         ])
         .setup(|app| {
+            macos::set_display_name("Writer Classic");
             install_title_menu(app.handle());
             install_scripting(app.handle());
             menu(app)?;
+            if let Some(directory) = std::env::var_os("WRITER_CLASSIC_NATIVE_SELFTEST") {
+                let directory = std::ffi::CString::new(directory.to_string_lossy().into_owned())
+                    .map_err(|e| e.to_string())?;
+                unsafe extern "C" {
+                    fn classic_native_selftest(directory: *const std::ffi::c_char);
+                }
+                unsafe { classic_native_selftest(directory.as_ptr()) }
+            }
             let paths: Vec<_> = std::env::args()
                 .skip(1)
                 .filter(|arg| !arg.starts_with('-'))
@@ -817,20 +839,27 @@ mod tests {
         assert_eq!(fs::read_to_string(&target).unwrap(), "after");
     }
     #[test]
-    fn menu_commands_fall_back_to_the_main_window_while_a_menu_is_open() {
+    fn menu_commands_fall_back_to_main_then_front_document_window() {
         assert_eq!(
-            menu_focus(Some("document-2"), Some("main")),
+            menu_focus(Some("document-2"), Some("main"), Some("main")),
             Some("document-2")
         );
-        assert_eq!(menu_focus(None, Some("main")), Some("main"));
-        assert_eq!(menu_focus(None, None), None);
+        assert_eq!(
+            menu_focus(None, Some("main"), Some("document-2")),
+            Some("main")
+        );
+        assert_eq!(
+            menu_focus(None, None, Some("document-2")),
+            Some("document-2")
+        );
+        assert_eq!(menu_focus(None, None, None), None);
         let labels = ["main"];
         assert_eq!(
-            menu_route("dark", menu_focus(None, Some("main")), &labels),
+            menu_route("dark", menu_focus(None, None, Some("main")), &labels),
             MenuRoute::Document("main")
         );
         assert_eq!(
-            menu_route("dark", menu_focus(None, None), &labels),
+            menu_route("dark", menu_focus(None, None, None), &labels),
             MenuRoute::Drop
         );
     }

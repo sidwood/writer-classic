@@ -511,14 +511,22 @@ async function closeDocument() {
   });
 }
 // A document window starts hidden, so its web view does not hold the keyboard
-// when it is shown. Make it first responder, then focus the editor inside it.
-async function focusEditorWindow() {
+// when it is shown. The native command makes the window key and main and the web
+// view first responder. The editor takes DOM focus only after that succeeds; a
+// failed attempt is retried, so it cannot leave the window without a keyboard.
+async function focusEditorWindow(focusEditor = true, attempt = 0) {
+  let focused = false;
   try {
-    await invoke("focus_editor_window");
+    focused = await invoke<boolean>("focus_editor_window");
   } catch (reason) {
     showError(reason);
   }
-  editor.value?.focus();
+  if (focused) {
+    if (focusEditor) editor.value?.focus();
+    return;
+  }
+  if (attempt < 40)
+    setTimeout(() => void focusEditorWindow(focusEditor, attempt + 1), 50);
 }
 function refreshPreview() {
   previewHtml.value = DOMPurify.sanitize(renderMarkdown(doc.text));
@@ -582,6 +590,7 @@ async function printDocument(formatted: boolean) {
   printFormatted.value = formatted;
   if (formatted) refreshPreview();
   await nextTick();
+  if (native) await invoke("prepare_print");
   await window.print();
 }
 async function exportDocument() {
@@ -975,8 +984,7 @@ onMounted(async () => {
           void invoke("set_vim_checked", { checked: vim.value });
           void invoke("set_menu_checked", { id: "dark", checked: dark.value });
           void syncViewMenu().catch(showError);
-          if (document.activeElement === document.body)
-            void focusEditorWindow();
+          void focusEditorWindow(document.activeElement === document.body);
         }),
       );
       if (label === "main") {
@@ -1473,6 +1481,7 @@ onBeforeUnmount(() => {
       class="print-document"
       :class="printFormatted ? 'formatted' : 'plain'"
     >
+      <header v-if="!native" class="print-header">{{ doc.title }}</header>
       <pre v-if="!printFormatted">{{ doc.text }}</pre>
       <div v-else v-html="previewHtml" />
     </article>

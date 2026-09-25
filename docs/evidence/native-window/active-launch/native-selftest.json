@@ -1,0 +1,102 @@
+{
+  "afterClick" : {
+    "firstResponderClass" : "wry::wkwebview::class::wry_web_view::WryWebView0.55.1",
+    "firstResponderIsWebView" : true,
+    "isKeyWindow" : true,
+    "isMainWindow" : true,
+    "page" : {
+      "active" : "Document text",
+      "bodyBackground" : "rgb(240, 240, 240)",
+      "error" : null,
+      "htmlClass" : "",
+      "mode" : "NORMAL",
+      "text" : "\n"
+    },
+    "windowTitle" : "Untitled"
+  },
+  "afterDarkMode" : {
+    "firstResponderClass" : "wry::wkwebview::class::wry_web_view::WryWebView0.55.1",
+    "firstResponderIsWebView" : true,
+    "isKeyWindow" : true,
+    "isMainWindow" : true,
+    "page" : {
+      "active" : "Document text",
+      "bodyBackground" : "rgb(32, 33, 36)",
+      "error" : null,
+      "htmlClass" : "dark",
+      "mode" : "NORMAL",
+      "text" : "Typed in the native window.\n"
+    },
+    "windowTitle" : "Untitled"
+  },
+  "afterInactiveToggle" : {
+    "firstResponderClass" : "wry::wkwebview::class::wry_web_view::WryWebView0.55.1",
+    "firstResponderIsWebView" : true,
+    "isKeyWindow" : false,
+    "isMainWindow" : false,
+    "page" : {
+      "active" : "Document text",
+      "bodyBackground" : "rgb(240, 240, 240)",
+      "error" : null,
+      "htmlClass" : "",
+      "mode" : "NORMAL",
+      "text" : "Typed in the native window.\n"
+    },
+    "windowTitle" : "Untitled"
+  },
+  "afterShow" : {
+    "firstResponderClass" : "wry::wkwebview::class::wry_web_view::WryWebView0.55.1",
+    "firstResponderIsWebView" : true,
+    "isKeyWindow" : true,
+    "isMainWindow" : true,
+    "page" : {
+      "active" : "Document text",
+      "bodyBackground" : "rgb(240, 240, 240)",
+      "error" : null,
+      "htmlClass" : "",
+      "mode" : "NORMAL",
+      "text" : "\n"
+    },
+    "windowTitle" : "Untitled"
+  },
+  "afterTyping" : {
+    "firstResponderClass" : "wry::wkwebview::class::wry_web_view::WryWebView0.55.1",
+    "firstResponderIsWebView" : true,
+    "isKeyWindow" : true,
+    "isMainWindow" : true,
+    "page" : {
+      "active" : "Document text",
+      "bodyBackground" : "rgb(240, 240, 240)",
+      "error" : null,
+      "htmlClass" : "",
+      "mode" : "NORMAL",
+      "text" : "Typed in the native window.\n"
+    },
+    "windowTitle" : "Untitled"
+  },
+  "darkMenuAfter" : 1,
+  "darkMenuAfterInactiveToggle" : 0,
+  "darkMenuBefore" : 0,
+  "finished" : true,
+  "inactiveAppActive" : true,
+  "inactiveKeyWindow" : "Untitled",
+  "inactiveMainWindow" : "Untitled",
+  "pid" : 40106,
+  "printHeaderAndFooter" : true,
+  "printSucceeded" : true,
+  "processName" : "writer-classic",
+  "windowsAtEnd" : [
+    {
+      "contentViewClass" : "wry::wkwebview::class::wry_web_view_parent::WryWebViewParent0.55.1",
+      "title" : "Untitled",
+      "visible" : true,
+      "webview" : 1
+    },
+    {
+      "contentViewClass" : "NSView",
+      "title" : "",
+      "visible" : false,
+      "webview" : 0
+    }
+  ]
+}

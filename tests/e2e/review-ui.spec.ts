@@ -75,6 +75,15 @@ test("Command-P prints plain text and Option-Command-P prints formatted HTML", a
     .toEqual(["print-document plain", "print-document formatted"]);
 });
 
+test("printed pages carry the document title as a header", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Document text" }).fill("Body");
+  await page.emulateMedia({ media: "print" });
+  const header = page.locator(".print-document .print-header");
+  await expect(header).toBeVisible();
+  await expect(header).toHaveText("Untitled");
+});
+
 test("format bar shows the heading at the caret, including heading text", async ({
   page,
 }) => {

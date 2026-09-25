@@ -1,0 +1,12 @@
+"LSDisplayName"="Writer Classic"
+"CFBundleIdentifier"=[ NULL ] 
+"CFBundleExecutablePath"="/Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/debug/writer-classic"
+    pid = 40106 type="Foreground" flavor=3 Version=[ NULL ]  fileType="????" creator="????" Arch=ARM64 
+    parentASN="atomic" ASN:0x0-0x17a97a8:  (inferred)
+    checkin time = 16 seconds ago, 2026/09/25 08:25:43 ( 15.7452 seconds ago )
+112) "Writer Classic Networking" ASN:0x0-0x188f88e: 
+    bundleID="com.apple.WebKit.Networking"
+    bundle path="/System/Volumes/Preboot/Cryptexes/OS/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc"
+    executable path="/System/Volumes/Preboot/Cryptexes/OS/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+  PID COMM
+40106 ./target/debug/writer-classic

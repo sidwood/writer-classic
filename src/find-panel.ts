@@ -16,7 +16,7 @@ import {
   setSearchQuery,
 } from "@codemirror/search";
 import {
-  EMAIL_PATTERN,
+  FIND_PATTERNS,
   defaultFindOptions,
   findQuerySpec,
   type FindMatch,
@@ -211,7 +211,7 @@ export class ClassicFind {
     for (const [value, label] of [
       ["", "Insert Pattern"],
       ["\t", "Tab"],
-      [EMAIL_PATTERN, "Email Address"],
+      ...FIND_PATTERNS.map((item) => [item.token, item.label]),
     ])
       pattern.append(make("option", { value }, label));
     optionsBody.append(pattern);

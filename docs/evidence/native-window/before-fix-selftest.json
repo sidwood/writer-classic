@@ -1,0 +1,38 @@
+{
+  "error" : "no visible document window",
+  "finished" : true,
+  "hiddenWindow" : {
+    "firstResponderClass" : "wry::wkwebview::class::wry_web_view::WryWebView0.55.1",
+    "firstResponderIsWebView" : true,
+    "isKeyWindow" : false,
+    "isMainWindow" : false,
+    "page" : {
+      "active" : "Document text",
+      "bodyBackground" : "rgb(240, 240, 240)",
+      "error" : "window.show not allowed. Permissions associated with this command: core:window:allow-show\nDismiss\n",
+      "htmlClass" : "",
+      "mode" : "NORMAL",
+      "text" : "\n"
+    },
+    "windowTitle" : "Untitled"
+  },
+  "pid" : 37733,
+  "processName" : "writer-classic",
+  "windows" : [
+    {
+      "title" : "Untitled",
+      "visible" : true,
+      "webview" : false
+    },
+    {
+      "title" : "",
+      "visible" : false,
+      "webview" : false
+    },
+    {
+      "title" : "Untitled",
+      "visible" : false,
+      "webview" : true
+    }
+  ]
+}

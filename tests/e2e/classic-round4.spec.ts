@@ -182,3 +182,34 @@ test("statistics pause, View labels toggle, format bar and Classic commands", as
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(editor(page)).toHaveText("one two three");
 });
+
+test("Insert Pattern finds line breaks and web addresses", async ({ page }) => {
+  await editor(page).fill("see https://example.com/a\nand http://x.org\nend");
+  await page.keyboard.press("Meta+f");
+  await page.getByText("Options").click();
+  const pattern = page.getByRole("combobox", { name: "Insert Pattern" });
+  await expect(pattern.locator("option")).toHaveText([
+    "Insert Pattern",
+    "Tab",
+    "Any Characters",
+    "Any Word Characters",
+    "Word Break",
+    "White Space",
+    "Digits",
+    "Line Break",
+    "Paragraph Break",
+    "Email Address",
+    "Web Address",
+    "Phone Number",
+  ]);
+  const find = page.getByRole("textbox", { name: "Find", exact: true });
+  const count = page.getByRole("status", { name: "Matches" });
+  await find.focus();
+  await pattern.selectOption({ label: "Line Break" });
+  await expect(find).toHaveValue("‹line break›");
+  await expect(count).toHaveText("2 matches");
+  await find.fill("");
+  await find.focus();
+  await pattern.selectOption({ label: "Web Address" });
+  await expect(count).toHaveText("2 matches");
+});

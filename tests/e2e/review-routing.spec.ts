@@ -10,11 +10,21 @@ function install(
     vim?: string;
     delayRead?: boolean;
     recovered?: boolean;
+    focusFailures?: number;
   } = {},
 ) {
   const label = options.label ?? "document-risk";
   return page.addInitScript(
-    ({ label, draft, disk, failRead, vim, delayRead, recovered }) => {
+    ({
+      label,
+      draft,
+      disk,
+      failRead,
+      vim,
+      delayRead,
+      recovered,
+      focusFailures,
+    }) => {
       const callbacks = new Map<number, (event: unknown) => void>();
       const events = new Map<string, number>();
       let id = 0;
@@ -40,8 +50,16 @@ function install(
         emit(event: string) {
           callbacks.get(events.get(event)!)?.({ payload: null });
         },
+        focusFailures: focusFailures ?? 0,
         async invoke(command: string, args: any) {
           this.calls.push({ command, args });
+          if (command === "focus_editor_window") {
+            if (this.focusFailures > 0) {
+              this.focusFailures--;
+              return false;
+            }
+            return true;
+          }
           if (command === "classic_font") throw "unavailable";
           if (command === "plugin:event|listen") {
             events.set(args.event, args.handler);
@@ -107,6 +125,7 @@ function install(
       vim: options.vim,
       delayRead: options.delayRead ?? false,
       recovered: options.recovered ?? false,
+      focusFailures: options.focusFailures ?? 0,
     },
   );
 }
@@ -208,6 +227,25 @@ test("shown window focuses the editor; menu Dark Mode repaints and checks", asyn
       ),
     )
     .toBe(true);
+});
+
+test("a failed native focus is retried before the editor takes focus", async ({
+  page,
+}) => {
+  await install(page, { vim: "true", focusFailures: 2 });
+  await page.goto("/");
+  const focusCalls = () =>
+    page.evaluate(
+      () =>
+        (window as any).testBridge.calls.filter(
+          (call: any) => call.command === "focus_editor_window",
+        ).length,
+    );
+  await expect.poll(focusCalls).toBeGreaterThanOrEqual(3);
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  await expect(editor).toBeFocused();
+  await page.keyboard.type("iAfter retry");
+  await expect(editor).toHaveText("After retry");
 });
 
 test("chosen encoding is used for open and a later lossless save", async ({

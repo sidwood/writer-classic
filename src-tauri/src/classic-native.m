@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
+#import <dlfcn.h>
 
 // AppKit owns this view with the titlebar. Flexible margins keep the group centered
 // during resizing; the real document proxy retains its native drag/menu behavior.
@@ -113,14 +114,78 @@ static NSView *classic_find_webview(NSView *view) {
     return nil;
 }
 
-// A window shown after it was created hidden does not give its web view the keyboard.
-// Returns 1 when the web view became first responder.
+static char keyObserverKey;
+
+static BOOL classic_webview_has_keyboard(NSWindow *window, NSView *webview) {
+    NSResponder *responder = window.firstResponder;
+    return webview && [responder isKindOfClass:[NSView class]] && [(NSView *)responder isDescendantOf:webview];
+}
+
+// wry's content view swallows every key that is not a menu shortcut, so the
+// editor receives typing only while its web view is the window's first responder.
+static BOOL classic_give_webview_keyboard(NSWindow *window) {
+    if (!window.isVisible || !window.contentView) return NO;
+    NSView *webview = classic_find_webview(window.contentView);
+    if (!webview) return NO;
+    if (!classic_webview_has_keyboard(window, webview)) [window makeFirstResponder:webview];
+    return classic_webview_has_keyboard(window, webview);
+}
+
+static void classic_watch_key(NSWindow *window) {
+    if (objc_getAssociatedObject(window, &keyObserverKey)) return;
+    id observer = [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidBecomeKeyNotification object:window queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *note) {
+        NSWindow *key = note.object;
+        if (classic_give_webview_keyboard(key)) return;
+        dispatch_async(dispatch_get_main_queue(), ^{ classic_give_webview_keyboard(key); });
+    }];
+    objc_setAssociatedObject(window, &keyObserverKey, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+// Makes a shown document window key and main and hands its web view the keyboard.
+// Returns 1 only when the first responder is the web view or inside it. When the web
+// view is not in the hierarchy yet, it tries once more on the next main-queue turn.
 int classic_focus_webview(NSWindow *window) {
     if (!window || !window.isVisible) return 0;
-    NSView *webview = window.contentView ? classic_find_webview(window.contentView) : nil;
-    if (!webview) return 0;
-    [window makeKeyWindow];
-    return [window makeFirstResponder:webview] ? 1 : 0;
+    classic_watch_key(window);
+    [NSApp activateIgnoringOtherApps:YES];
+    [window makeKeyAndOrderFront:nil];
+    [window makeMainWindow];
+    if (classic_give_webview_keyboard(window)) return 1;
+    dispatch_async(dispatch_get_main_queue(), ^{ classic_give_webview_keyboard(window); });
+    return 0;
+}
+
+// Classic prints a header and footer (IAPrintAccessoryView "Print header and footer",
+// NSPrintHeaderAndFooter). AppKit draws the job title and date at the top of each page
+// and the page number at the bottom. The web view's print operation starts from the
+// shared print info, so the flag is set there before the page asks to print.
+void classic_prepare_print(void) {
+    NSPrintInfo *info = [NSPrintInfo sharedPrintInfo];
+    info.dictionary[NSPrintHeaderAndFooter] = @YES;
+}
+
+// Position of a visible window in front-to-back order, or -1 when it is hidden.
+long classic_front_order(NSWindow *window) {
+    if (!window || !window.isVisible) return -1;
+    NSUInteger index = [NSApp.orderedWindows indexOfObject:window];
+    return index == NSNotFound ? -1 : (long)index;
+}
+
+// A bare executable is named after its file in the Dock and menu bar. Give the
+// process the application's display name through LaunchServices. The process name
+// itself is left alone: WebKit keys the page's storage directory on it, so renaming
+// it would hide existing drafts and preferences.
+void classic_set_display_name(const char *name) {
+    typedef CFTypeRef (*GetASN)(void);
+    typedef OSStatus (*SetItem)(int, CFTypeRef, CFStringRef, CFStringRef, CFDictionaryRef *);
+    void *services = dlopen("/System/Library/Frameworks/CoreServices.framework/CoreServices", RTLD_LAZY);
+    GetASN getASN = services ? (GetASN)dlsym(services, "_LSGetCurrentApplicationASN") : NULL;
+    SetItem setItem = services ? (SetItem)dlsym(services, "_LSSetApplicationInformationItem") : NULL;
+    CFStringRef *displayKey = services ? (CFStringRef *)dlsym(services, "_kLSDisplayNameKey") : NULL;
+    NSString *value = [NSString stringWithUTF8String:name];
+    if (!getASN || !setItem || !displayKey) return;
+    CFTypeRef asn = getASN();
+    if (asn) setItem(-2, asn, *displayKey, (__bridge CFStringRef)value, NULL);
 }
 
 char *classic_open_documents(const char *directory) {
@@ -154,6 +219,13 @@ char *classic_open_documents(const char *directory) {
 @end
 @implementation ClassicHistoryDocument
 + (BOOL)autosavesInPlace { return YES; }
+// Document windows are Tauri web views. AppKit must not open an empty, read-only
+// history window as the untitled document at launch or on a Dock reopen.
+- (instancetype)initWithType:(NSString *)typeName error:(NSError **)outError {
+    (void)typeName;
+    if (outError) *outError = [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil];
+    return nil;
+}
 - (NSStringEncoding)versionEncoding {
     return self.classicEncoding ? self.classicEncoding : NSUTF8StringEncoding;
 }
