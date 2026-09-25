@@ -81,6 +81,11 @@ function chooseWorkflow(value: string) {
   applyLayout();
   view?.focus();
 }
+// The select must not keep the keyboard, whether or not its value changed.
+// Focus that moves to another control stays there.
+function leaveWorkflowChoice(event: FocusEvent) {
+  if (!event.relatedTarget) view?.focus();
+}
 let view: EditorView;
 const vimConfig = new Compartment();
 const focusConfig = new Compartment();
@@ -590,6 +595,7 @@ defineExpose({ command, focus: () => view.focus() });
         aria-label="Typeface"
         :value="String(workflow)"
         @change="chooseWorkflow(($event.target as HTMLSelectElement).value)"
+        @blur="leaveWorkflowChoice"
       >
         <option
           v-for="state in WORKFLOW_STATES"

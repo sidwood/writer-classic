@@ -3,6 +3,7 @@
 use std::{fs, io::Write, path::Path, sync::Mutex};
 use tauri::{Emitter, Manager};
 mod encoding;
+mod font;
 mod lifecycle;
 mod macos;
 
@@ -67,10 +68,11 @@ fn classic_font(weight: String) -> Result<Vec<u8>, String> {
         "italic" => "NittiPro-MediumItalic",
         _ => return Err("Unknown font face".into()),
     };
-    fs::read(format!(
+    let cipher = fs::read(format!(
         "/Applications/iA Writer Classic.app/Contents/Resources/Fonts/{name}.otf"
     ))
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    font::decrypt(&cipher)
 }
 
 fn vim_preference(app: &tauri::AppHandle) -> bool {

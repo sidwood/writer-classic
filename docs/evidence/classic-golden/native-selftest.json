@@ -5,7 +5,8 @@
     "fullSizeContentView" : 1,
     "imageOriginBelowFrame" : 0,
     "page" : {
-      "face" : "Menlo",
+      "classicFaceLoaded" : true,
+      "face" : "Nitti Pro",
       "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
       "fontSize" : "16px",
       "htmlClass" : "",
@@ -15,7 +16,7 @@
       "paddingTop" : "22px",
       "safeAreaTop" : "0px",
       "scrollerTop" : 0,
-      "spaceEm" : 0.60204999999999997,
+      "spaceEm" : 0.55000000000000004,
       "textLeft" : 14,
       "textTop" : 22
     },
@@ -29,7 +30,7 @@
     "windowHeight" : 615,
     "windowWidth" : 735
   },
-  "pid" : 27053,
+  "pid" : 67457,
   "processName" : "writer-classic",
   "windowsAtEnd" : [
     {

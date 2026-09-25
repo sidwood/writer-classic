@@ -143,3 +143,18 @@ test("the Typeface control writes the workflow state and changes Classic's size 
   await page.reload();
   await expect(editor).toHaveCSS("font-size", "14px");
 });
+
+test("leaving the Typeface control unchanged hands typing back to the document", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  const typeface = page.getByRole("combobox", { name: "Typeface" });
+  await typeface.focus();
+  await expect(typeface).toHaveValue("1");
+  await typeface.evaluate((select) => (select as HTMLSelectElement).blur());
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("i");
+  await page.keyboard.type("Back in the text.");
+  await expect(editor).toHaveText("Back in the text.");
+});

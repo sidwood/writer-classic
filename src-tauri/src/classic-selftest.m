@@ -305,6 +305,7 @@ static void selftest_golden(NSWindow *window, double width, double height, NSStr
             " fontSize: getComputedStyle(content).fontSize, lineHeight: getComputedStyle(content).lineHeight,"
             " fontFamily: getComputedStyle(content).fontFamily,"
             " face: document.querySelector('.writer-editor')?.dataset.face ?? null,"
+            " classicFaceLoaded: [...document.fonts].some((f) => f.family.replace(/\\\"/g, '') === 'Classic Nitti' && f.status === 'loaded'),"
             " spaceEm: Number(document.querySelector('.writer-editor')?.dataset.spaceEm ?? 0),"
             " safeAreaTop, paddingTop: getComputedStyle(content).paddingTop,"
             " textLeft: line.left, textTop: line.top - scroller.top, scrollerTop: scroller.top});"

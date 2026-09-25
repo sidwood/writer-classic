@@ -6,25 +6,26 @@
     "reason" : "top padding differs",
     "result" : {
       "classic" : {
-        "capHeight" : 11,
+        "capHeight" : 9,
         "firstInk" : 34,
-        "left" : 15,
+        "left" : 15.5,
         "lines" : 4,
-        "pitch" : 22,
-        "top" : 35
+        "pitch" : 23,
+        "top" : 34
       },
       "clone" : {
-        "capHeight" : 11,
+        "capHeight" : 9,
         "firstInk" : 28,
-        "left" : 15,
+        "left" : 15.5,
         "lines" : 4,
-        "pitch" : 22,
-        "top" : 29
+        "pitch" : 23,
+        "top" : 28
       },
       "cloneLineTopBelowTitlebar" : 22,
       "cloneOrigin" : "first ink 28.0 lies in the first line box 22.0–45.602599999999995",
       "clonePage" : {
-        "face" : "Menlo",
+        "classicFaceLoaded" : true,
+        "face" : "Nitti Pro",
         "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
         "fontSize" : "16px",
         "htmlClass" : "",
@@ -34,7 +35,7 @@
         "paddingTop" : "22px",
         "safeAreaTop" : "0px",
         "scrollerTop" : 0,
-        "spaceEm" : 0.60204999999999997,
+        "spaceEm" : 0.55000000000000004,
         "textLeft" : 14,
         "textTop" : 22
       },
@@ -60,7 +61,8 @@
     "reason" : "cloneTitleBand",
     "result" : {
       "clonePage" : {
-        "face" : "Menlo",
+        "classicFaceLoaded" : true,
+        "face" : "Nitti Pro",
         "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
         "fontSize" : "16px",
         "htmlClass" : "",
@@ -70,12 +72,12 @@
         "paddingTop" : "22px",
         "safeAreaTop" : "0px",
         "scrollerTop" : 0,
-        "spaceEm" : 0.60204999999999997,
+        "spaceEm" : 0.55000000000000004,
         "textLeft" : 14,
         "textTop" : 22
       },
-      "cloneTitleBand" : "text ink inside the title-bar band (1253 pixels)",
-      "cloneTitleBandInk" : 1253,
+      "cloneTitleBand" : "text ink inside the title-bar band (1180 pixels)",
+      "cloneTitleBandInk" : 1180,
       "compared" : false,
       "origin" : {
         "classicSkipTop" : 32,
@@ -95,25 +97,26 @@
     "reason" : null,
     "result" : {
       "classic" : {
-        "capHeight" : 11,
+        "capHeight" : 9,
         "firstInk" : 28,
-        "left" : 15,
+        "left" : 15.5,
         "lines" : 4,
-        "pitch" : 22,
-        "top" : 29
+        "pitch" : 23,
+        "top" : 28
       },
       "clone" : {
-        "capHeight" : 11,
+        "capHeight" : 9,
         "firstInk" : 28,
-        "left" : 15,
+        "left" : 15.5,
         "lines" : 4,
-        "pitch" : 22,
-        "top" : 29
+        "pitch" : 23,
+        "top" : 28
       },
       "cloneLineTopBelowTitlebar" : 22,
       "cloneOrigin" : "first ink 28.0 lies in the first line box 22.0–45.602599999999995",
       "clonePage" : {
-        "face" : "Menlo",
+        "classicFaceLoaded" : true,
+        "face" : "Nitti Pro",
         "fontFamily" : "\"Classic Nitti\", \"Nitti Pro\", Menlo, monospace",
         "fontSize" : "16px",
         "htmlClass" : "",
@@ -123,7 +126,7 @@
         "paddingTop" : "22px",
         "safeAreaTop" : "0px",
         "scrollerTop" : 0,
-        "spaceEm" : 0.60204999999999997,
+        "spaceEm" : 0.55000000000000004,
         "textLeft" : 14,
         "textTop" : 22
       },
