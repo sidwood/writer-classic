@@ -45,10 +45,12 @@ Files in an existing iCloud Drive folder can be selected through native dialogs.
 
 ```sh
 npm test
+npm run test:icons
 npx playwright install chromium
 npm run test:e2e
 npm run build
 cargo test --manifest-path src-tauri/Cargo.toml
+python3 scripts/verify-bundle.py # after the targeted native build above
 qlty config validate
 qlty check --all
 ```

@@ -1,4 +1,4 @@
-"""Verify the built Apple Silicon bundle and original document icon wiring."""
+"""Verify the built Apple Silicon bundle and canonical light app icon."""
 import pathlib
 import plistlib
 import subprocess
@@ -24,7 +24,12 @@ assert exported["UTTypeIconFile"] == "markdown-document-icon"
 assert imported["UTTypeIconFile"] == "markdown-document-icon"
 assert classic.issubset(set(exported["UTTypeTagSpecification"]["public.filename-extension"]))
 assert (bundle / "Contents/Resources/markdown-document-icon.icns").read_bytes() == (root / "brand/markdown-document-icon.icns").read_bytes()
-assert (bundle / "Contents/Resources/icon.icns").read_bytes() == (root / "src-tauri/icons/icon.icns").read_bytes()
+assert info["CFBundleIconFile"].removesuffix(".icns") == "icon"
+assert "CFBundleIconName" not in info
+assert not (bundle / "Contents/Resources/Assets.car").exists()
+light = (root / "brand/app-icon-light.icns").read_bytes()
+assert (root / "src-tauri/icons/icon.icns").read_bytes() == light
+assert (bundle / "Contents/Resources/icon.icns").read_bytes() == light
 assert info["NSAppleScriptEnabled"] is True
 assert info["OSAScriptingDefinition"] == "WriterClassic.sdef"
 assert info["CFBundleHelpBookFolder"] == "WriterClassicHelp"
@@ -41,4 +46,4 @@ types = ql_info["CFBundleDocumentTypes"][0]["LSItemContentTypes"]
 assert "public.plain-text" in types and "net.daringfireball.markdown" in types
 preview = bundle / "Contents/PlugIns/WriterClassicPreview.appex"
 assert (preview / "Contents/MacOS/WriterClassicPreview").is_file()
-print("PASS: arm64 Mach-O executable; Markdown association; Quick Look generator; help book; AppleScript definition; document and app icon bytes match handed-off assets.")
+print("PASS: arm64 Mach-O executable; Markdown association; Quick Look generator; help book; AppleScript definition; document icon and canonical light app icon bytes match.")

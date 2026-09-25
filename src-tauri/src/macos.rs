@@ -493,6 +493,22 @@ pub fn script_forget_document(window: tauri::Window) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn app_icon_choice_requires_literal_dark() {
+        for value in ["", "system", "Dark", "light"] {
+            assert_eq!(app_icon_choice(value), "light");
+        }
+        assert_eq!(app_icon_choice("dark"), "dark");
+    }
+
+    #[test]
+    fn bundled_default_icon_matches_canonical_light() {
+        assert_eq!(
+            include_bytes!("../icons/icon.icns"),
+            include_bytes!("../../brand/app-icon-light.icns")
+        );
+    }
+
+    #[test]
     fn icloud_container_probe() {
         println!("iCloud container: {:?}", icloud_status());
     }

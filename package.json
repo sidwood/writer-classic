@@ -7,6 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
     "test": "vitest run",
+    "test:icons": "python3 -B -m unittest discover -s tests -p test_app_icons.py",
     "test:e2e": "playwright test",
     "tauri": "tauri",
     "test:golden": "scripts/classic-golden.sh"
