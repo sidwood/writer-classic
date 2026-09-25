@@ -432,7 +432,7 @@ const FALLBACK_FACES = "Menlo, monospace";
  */
 function drawnFace(state: WorkflowState) {
   const wanted = WORKFLOW_FACE[state];
-  const family = state === 1 ? `"Classic Nitti", "Nitti Pro"` : `"${wanted}"`;
+  const family = state === 1 ? `"Nitti Pro"` : `"${wanted}"`;
   const stack = `${family}, ${FALLBACK_FACES}`;
   const context = document.createElement("canvas").getContext("2d");
   if (!context) return { stack, name: "unmeasured", spaceEm: NITTI_SPACE_EM };

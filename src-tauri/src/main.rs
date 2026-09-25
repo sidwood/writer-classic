@@ -3,7 +3,6 @@
 use std::{fs, io::Write, path::Path, sync::Mutex};
 use tauri::{Emitter, Manager};
 mod encoding;
-mod font;
 mod lifecycle;
 mod macos;
 
@@ -58,21 +57,6 @@ fn write_text(path: String, text: String, expected: Option<String>) -> Result<()
 #[tauri::command]
 fn write_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
     atomic_write(Path::new(&path), &bytes)
-}
-
-#[tauri::command]
-fn classic_font(weight: String) -> Result<Vec<u8>, String> {
-    let name = match weight.as_str() {
-        "regular" => "NittiPro-Medium",
-        "bold" => "NittiPro-Bold",
-        "italic" => "NittiPro-MediumItalic",
-        _ => return Err("Unknown font face".into()),
-    };
-    let cipher = fs::read(format!(
-        "/Applications/iA Writer Classic.app/Contents/Resources/Fonts/{name}.otf"
-    ))
-    .map_err(|e| e.to_string())?;
-    font::decrypt(&cipher)
 }
 
 fn vim_preference(app: &tauri::AppHandle) -> bool {
@@ -770,7 +754,6 @@ fn main() {
             read_bytes,
             write_text,
             write_bytes,
-            classic_font,
             set_vim_checked,
             set_menu_checked,
             set_menu_text,

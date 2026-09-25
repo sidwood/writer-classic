@@ -1014,22 +1014,6 @@ onMounted(async () => {
           }
         }
       }
-      for (const [weight, css] of [
-        ["regular", { weight: "400" }],
-        ["bold", { weight: "700" }],
-        ["italic", { style: "italic" }],
-      ] as const) {
-        try {
-          const bytes = new Uint8Array(
-            await invoke<number[]>("classic_font", { weight }),
-          );
-          const font = new FontFace("Classic Nitti", bytes, css);
-          await font.load();
-          document.fonts.add(font);
-        } catch {
-          /* Licensed font is optional and never bundled. */
-        }
-      }
       cleanups.push(
         await getCurrentWebviewWindow().listen<string>(
           "menu-action",

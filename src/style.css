@@ -177,7 +177,6 @@ kbd {
   overflow: auto;
   font-family: var(
     --writer-font-family,
-    "Classic Nitti",
     "Nitti Pro",
     Menlo,
     monospace
@@ -604,7 +603,7 @@ main:has(.cm-search) footer > * {
   overflow: auto;
   flex: 1;
   font:
-    17px/1.6 "Classic Nitti",
+    17px/1.6 "Nitti Pro",
     Menlo,
     monospace;
 }

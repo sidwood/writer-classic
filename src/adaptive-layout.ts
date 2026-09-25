@@ -61,7 +61,7 @@ export function textMeasure(glyphWidth: number) {
  * Nitti Pro's space advance in ems, inferred for Classic's inset: Classic's
  * minimum widths for its 19pt and 24pt steps (850 and 1065) are the narrowest
  * windows that hold the 80-space container plus a legacy scroller at about
- * 0.54em. The decrypted face drawn by the clone measures about 0.55em.
+ * 0.54em. Classic's Nitti files are encrypted and are not loaded by the clone.
  */
 export const NITTI_SPACE_EM = 0.54;
 /** NSScroller legacy width that Classic subtracts before centring. */
