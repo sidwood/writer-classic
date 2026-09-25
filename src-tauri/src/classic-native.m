@@ -98,6 +98,31 @@ void classic_center_title(NSWindow *window) {
     objc_setAssociatedObject(window, &centeringKey, nil, OBJC_ASSOCIATION_ASSIGN);
 }
 
+// Menu tracking clears the key window but keeps the main window.
+int classic_is_main_window(NSWindow *window) {
+    return window && window.isMainWindow ? 1 : 0;
+}
+
+static NSView *classic_find_webview(NSView *view) {
+    for (Class kind = view.class; kind; kind = class_getSuperclass(kind))
+        if ([NSStringFromClass(kind) isEqualToString:@"WKWebView"]) return view;
+    for (NSView *child in view.subviews) {
+        NSView *found = classic_find_webview(child);
+        if (found) return found;
+    }
+    return nil;
+}
+
+// A window shown after it was created hidden does not give its web view the keyboard.
+// Returns 1 when the web view became first responder.
+int classic_focus_webview(NSWindow *window) {
+    if (!window || !window.isVisible) return 0;
+    NSView *webview = window.contentView ? classic_find_webview(window.contentView) : nil;
+    if (!webview) return 0;
+    [window makeKeyWindow];
+    return [window makeFirstResponder:webview] ? 1 : 0;
+}
+
 char *classic_open_documents(const char *directory) {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
     panel.allowsMultipleSelection = YES;

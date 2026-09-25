@@ -285,6 +285,28 @@ pub fn set_document_header(
     Ok(())
 }
 
+/// Gives the document's web view the keyboard after its hidden window is shown.
+#[tauri::command]
+pub fn focus_editor_window(window: tauri::Window) -> Result<bool, String> {
+    use objc2::MainThreadMarker;
+    let _main = MainThreadMarker::new().ok_or("Focusing the editor requires the main thread")?;
+    let pointer = window.ns_window().map_err(|e| e.to_string())?;
+    unsafe extern "C" {
+        fn classic_focus_webview(window: *mut std::ffi::c_void) -> i32;
+    }
+    Ok(unsafe { classic_focus_webview(pointer) } == 1)
+}
+
+/// True while this window is the main window, including during menu tracking.
+pub fn is_main_window(window: &tauri::WebviewWindow) -> bool {
+    unsafe extern "C" {
+        fn classic_is_main_window(window: *mut std::ffi::c_void) -> i32;
+    }
+    window
+        .ns_window()
+        .is_ok_and(|pointer| unsafe { classic_is_main_window(pointer) } == 1)
+}
+
 #[tauri::command]
 pub fn open_help() -> Result<(), String> {
     unsafe extern "C" {

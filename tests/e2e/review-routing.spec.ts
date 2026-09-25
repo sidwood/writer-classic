@@ -172,6 +172,44 @@ test("persisted Vim off is pushed to the native checkbox at startup", async ({
   await expect(page.getByLabel("Vim state")).toHaveCount(0);
 });
 
+test("shown window focuses the editor; menu Dark Mode repaints and checks", async ({
+  page,
+}) => {
+  await install(page, { vim: "true" });
+  await page.goto("/");
+  const commands = () =>
+    page.evaluate(() =>
+      (window as any).testBridge.calls.map((call: any) => call.command),
+    );
+  await expect
+    .poll(async () => {
+      const list = await commands();
+      const shown = list.indexOf("plugin:window|show");
+      return shown >= 0 && list.indexOf("focus_editor_window", shown) > shown;
+    })
+    .toBe(true);
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  await expect(editor).toBeFocused();
+  await page.keyboard.type("iTyped");
+  await expect(editor).toHaveText("Typed");
+
+  await page.evaluate(() => (window as any).testBridge.menu("dark"));
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as any).testBridge.calls
+            .filter(
+              (call: any) =>
+                call.command === "set_menu_checked" && call.args.id === "dark",
+            )
+            .pop()?.args.checked,
+      ),
+    )
+    .toBe(true);
+});
+
 test("chosen encoding is used for open and a later lossless save", async ({
   page,
 }) => {

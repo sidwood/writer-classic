@@ -324,6 +324,12 @@ enum MenuRoute<'a> {
     Drop,
 }
 
+/// The key window owns a menu command. AppKit clears it while a menu is open,
+/// so the main window, which stays set, is the fallback.
+fn menu_focus<'a>(key: Option<&'a str>, main: Option<&'a str>) -> Option<&'a str> {
+    key.or(main)
+}
+
 fn menu_route<'a>(command: &str, focused: Option<&'a str>, labels: &[&'a str]) -> MenuRoute<'a> {
     if command == "quit" {
         return MenuRoute::QuitAll;
@@ -572,10 +578,17 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         ("preview", "Show Preview", "CmdOrCtrl+R"),
         ("format-bar", "Hide Format Bar", "CmdOrCtrl+Alt+T"),
         ("fullscreen", "Full Screen", "Ctrl+Super+F"),
-        ("dark", "Dark Mode", "CmdOrCtrl+Alt+D"),
     ] {
         view.append(&MenuItem::with_id(app, id, text, true, Some(key))?)?;
     }
+    view.append(&CheckMenuItem::with_id(
+        app,
+        "dark",
+        "Dark Mode",
+        true,
+        false,
+        Some("CmdOrCtrl+Alt+D"),
+    )?)?;
     root.append(&view)?;
     let window = Submenu::new(app, "Window", true)?;
     window.append(&PredefinedMenuItem::minimize(app, None)?)?;
@@ -601,11 +614,16 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         let windows = app.webview_windows();
         let labels: Vec<String> = windows.keys().cloned().collect();
         let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
-        let focused = windows
+        let key = windows
             .values()
             .find(|window| window.is_focused().unwrap_or(false))
             .map(|window| window.label().to_string());
-        match menu_route(command, focused.as_deref(), &label_refs) {
+        let main = windows
+            .values()
+            .find(|window| macos::is_main_window(window))
+            .map(|window| window.label().to_string());
+        let focused = menu_focus(key.as_deref(), main.as_deref());
+        match menu_route(command, focused, &label_refs) {
             MenuRoute::QuitAll => {
                 let _ = lifecycle::request_quit(app.clone(), app.state());
             }
@@ -706,6 +724,7 @@ fn main() {
             macos::browse_native_versions,
             macos::text_service,
             macos::set_document_header,
+            macos::focus_editor_window,
             macos::list_versions,
             macos::save_version,
             macos::remove_version,
@@ -796,6 +815,24 @@ mod tests {
             .file_type()
             .is_symlink());
         assert_eq!(fs::read_to_string(&target).unwrap(), "after");
+    }
+    #[test]
+    fn menu_commands_fall_back_to_the_main_window_while_a_menu_is_open() {
+        assert_eq!(
+            menu_focus(Some("document-2"), Some("main")),
+            Some("document-2")
+        );
+        assert_eq!(menu_focus(None, Some("main")), Some("main"));
+        assert_eq!(menu_focus(None, None), None);
+        let labels = ["main"];
+        assert_eq!(
+            menu_route("dark", menu_focus(None, Some("main")), &labels),
+            MenuRoute::Document("main")
+        );
+        assert_eq!(
+            menu_route("dark", menu_focus(None, None), &labels),
+            MenuRoute::Drop
+        );
     }
     #[test]
     fn menu_commands_stay_on_one_document_and_quit_ignores_preview_focus() {

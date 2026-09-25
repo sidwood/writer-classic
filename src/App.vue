@@ -510,6 +510,16 @@ async function closeDocument() {
     } else applyDocument(null, "");
   });
 }
+// A document window starts hidden, so its web view does not hold the keyboard
+// when it is shown. Make it first responder, then focus the editor inside it.
+async function focusEditorWindow() {
+  try {
+    await invoke("focus_editor_window");
+  } catch (reason) {
+    showError(reason);
+  }
+  editor.value?.focus();
+}
 function refreshPreview() {
   previewHtml.value = DOMPurify.sanitize(renderMarkdown(doc.text));
   if (nativePreview)
@@ -834,7 +844,12 @@ watch(
   async (enabled) => {
     localStorage.setItem("writer-classic.dark", String(enabled));
     document.documentElement.classList.toggle("dark", enabled);
-    if (native) await getCurrentWindow().setTheme(enabled ? "dark" : "light");
+    if (native) {
+      void invoke("set_menu_checked", { id: "dark", checked: enabled }).catch(
+        showError,
+      );
+      await getCurrentWindow().setTheme(enabled ? "dark" : "light");
+    }
     refreshPreview();
   },
   { immediate: true },
@@ -935,7 +950,10 @@ onMounted(async () => {
     const initialPath = new URLSearchParams(location.search).get("open");
     if (native && initialPath) await openPath(initialPath);
     await updateDocumentHeader();
-    if (native) await getCurrentWindow().show();
+    if (native) {
+      await getCurrentWindow().show();
+      await focusEditorWindow();
+    }
     if (native) {
       noteScriptDocument();
       await invoke("set_vim_checked", { checked: vim.value });
@@ -955,7 +973,10 @@ onMounted(async () => {
         await getCurrentWindow().onFocusChanged((event) => {
           if (!event.payload) return;
           void invoke("set_vim_checked", { checked: vim.value });
+          void invoke("set_menu_checked", { id: "dark", checked: dark.value });
           void syncViewMenu().catch(showError);
+          if (document.activeElement === document.body)
+            void focusEditorWindow();
         }),
       );
       if (label === "main") {
