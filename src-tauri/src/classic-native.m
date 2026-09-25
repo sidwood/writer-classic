@@ -421,6 +421,23 @@ const char *classic_title_geometry_error(const char *iconPath) {
     return NULL;
 }
 
+void classic_set_application_icon(const void *bytes, unsigned long length) {
+    NSData *data = [NSData dataWithBytes:bytes length:length];
+    NSImage *image = [[NSImage alloc] initWithData:data];
+    if (image) [NSApplication.sharedApplication setApplicationIconImage:image];
+}
+
+const char *classic_app_icon_variant(void) {
+    NSString *value = [NSUserDefaults.standardUserDefaults stringForKey:@"writer-classic.app-icon"];
+    return [value isEqualToString:@"dark"] ? "dark" : "light";
+}
+
+void classic_store_app_icon_variant(const char *variant) {
+    if (!variant) return;
+    [NSUserDefaults.standardUserDefaults setObject:[NSString stringWithUTF8String:variant]
+                                             forKey:@"writer-classic.app-icon"];
+}
+
 #ifdef CLASSIC_TITLE_GEOMETRY_MAIN
 int main(int argc, char **argv) {
     if (argc < 2) return 2;

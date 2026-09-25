@@ -4,9 +4,10 @@
 //   node brand/build-icons.mjs
 //
 // Needs rsvg-convert (SVG -> PNG), sips (resizing), iconutil (.icns) and
-// ImageMagick's magick (stripping alpha from the iOS set). All art is original: a
-// lowercase monoline "w" followed by a vermilion underscore caret, on a warm
-// light tile. The document icon reuses the same stroke language as "md_".
+// ImageMagick's magick (stripping alpha from the iOS set). All art is original:
+// the app icon is a white card, turned 8 degrees counter-clockwise on a warm
+// grey squircle, carrying the word "classic" in monoline strokes and a tall
+// vermilion caret. The document icon reuses the same stroke language as "md_".
 import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
@@ -27,9 +28,11 @@ const work = mkdtempSync(join(tmpdir(), "writer-classic-icons-"));
 
 const INK = "#2c2c2f";
 const ACCENT = "#e8553a";
-const TILE_TOP = "#fcfbf8";
-const TILE_BOTTOM = "#ebe8e2";
-const TILE_FLAT = "#f4f2ed";
+const TILE_TOP = "#ebe8e2";
+const TILE_BOTTOM = "#dbd7cf";
+const TILE_FLAT = "#e3e0d9";
+const CARD_TOP = "#ffffff";
+const CARD_BOTTOM = "#f6f5f2";
 
 const n = (value) => +value.toFixed(2);
 
@@ -42,49 +45,163 @@ function caret(x, base, weight, length) {
   return `<rect x="${n(x)}" y="${n(y)}" width="${n(length)}" height="${n(height)}" rx="${n(height * 0.24)}" fill="${ACCENT}"/>`;
 }
 
-// The mark in tile space: an 824-unit square, the macOS icon grid's body.
-// `weight` is the stroke width; the small-size variant thickens it.
+// The word "classic" is drawn from strokes, not set in a font. Letter units:
+// stroke centrelines, baseline at y = 0, x-height at y = -2 * BOWL. Glyphs are
+// spaced for LAYOUT_WEIGHT and never move when the stroke changes, so the
+// heavier small-size masters keep the same composition.
+const BOWL = 41; // centreline radius of the c and a bowls
+const ASCENDER = 138; // centreline top of the l
+const LAYOUT_WEIGHT = 24;
+const C_OPENING = 42; // degrees each c terminal sits off the horizontal
+const S_BOWL = 19.4; // radius of the two stacked s bowls, before stretching
+const S_STRETCH = 1.34;
+const S_TERMINAL = 37; // degrees each s terminal sits off the horizontal
+const DOT = 128; // height of the centre of the i's dot
+const GAPS = [21, 31, 24, 20, 25, 29, 30]; // ink gaps: c l a s s i c caret
+const CARET_TOP = 168; // the caret rises above the l
+const CARET_DROP = 34; // and drops below the baseline
+const CARET_WIDTH = 1.35; // times the stroke weight
+
+const radians = (degrees) => (degrees * Math.PI) / 180;
+
+// Centreline paths for the word, plus the i's dot, the caret's centre and the
+// ink box of word and caret at LAYOUT_WEIGHT.
+function classicWord() {
+  const middle = -BOWL;
+  const paths = [];
+  let x = 0; // centreline left edge of the glyph being drawn
+  let dot;
+
+  // A circle open to the right. Returns the x of its terminals.
+  const c = () => {
+    const tip = x + BOWL * (1 + Math.cos(radians(C_OPENING)));
+    const rise = BOWL * Math.sin(radians(C_OPENING));
+    paths.push(
+      `M${n(tip)} ${n(middle - rise)} A${BOWL} ${BOWL} 0 1 0 ${n(tip)} ${n(middle + rise)}`,
+    );
+    return tip;
+  };
+  const stem = (top) => {
+    paths.push(`M${n(x)} ${-top} V0`);
+    return x;
+  };
+  const l = () => stem(ASCENDER);
+  const i = () => {
+    dot = [x, -DOT];
+    return stem(2 * BOWL);
+  };
+  // A whole bowl with a stem down its right side.
+  const a = () => {
+    const right = x + 2 * BOWL;
+    paths.push(
+      `M${n(right)} ${middle} A${BOWL} ${BOWL} 0 1 0 ${n(x)} ${middle} A${BOWL} ${BOWL} 0 1 0 ${n(right)} ${middle} M${n(right)} ${2 * middle} V0`,
+    );
+    return right;
+  };
+  // Two stacked circles joined by their inner tangent, stretched sideways.
+  const s = () => {
+    const offset = BOWL - S_BOWL; // each bowl centre's distance off the middle
+    const turn = Math.acos(S_BOWL / offset); // where the spine leaves a bowl
+    const half = S_STRETCH * S_BOWL;
+    const centre = x + half;
+    const at = (y, angle) =>
+      `${n(centre + half * Math.cos(angle))} ${n(y + S_BOWL * Math.sin(angle))}`;
+    const sweep = 270 - S_TERMINAL - (turn * 180) / Math.PI;
+    const arc = `A${n(half)} ${S_BOWL} 0 ${sweep > 180 ? 1 : 0}`;
+    const top = middle - offset;
+    const bottom = middle + offset;
+    const end = radians(S_TERMINAL);
+    paths.push(
+      `M${at(top, -end)} ${arc} 0 ${at(top, Math.PI / 2 + turn)} L${at(bottom, turn - Math.PI / 2)} ${arc} 1 ${at(bottom, Math.PI - end)}`,
+    );
+    return centre + half;
+  };
+
+  [c, l, a, s, s, i, c].forEach((glyph, index) => {
+    if (index > 0) x += LAYOUT_WEIGHT + GAPS[index - 1];
+    x = glyph();
+  });
+  const caretWidth = CARET_WIDTH * LAYOUT_WEIGHT;
+  const caretX = x + LAYOUT_WEIGHT / 2 + GAPS[6] + caretWidth / 2;
+  return {
+    d: paths.join(" "),
+    dot,
+    caretX,
+    box: {
+      left: -LAYOUT_WEIGHT / 2,
+      right: caretX + caretWidth / 2,
+      top: -CARET_TOP,
+      bottom: CARET_DROP,
+    },
+  };
+}
+
+// The paper card, in tile space.
+const CARD = 600;
+const CARD_RADIUS = 0.045 * CARD;
+const CARD_TILT = -8; // degrees; negative turns it counter-clockwise
+const MARK_WIDTH = 0.82 * CARD;
+
+// The word and its caret, centred on the card. `weight` is the letter stroke
+// in letter units; the caret thickens with it.
+function wordmark(weight) {
+  const { d, dot, caretX, box } = classicWord();
+  const scale = +(MARK_WIDTH / (box.right - box.left)).toFixed(4);
+  const x = 412 - (scale * (box.left + box.right)) / 2;
+  const y = 412 - (scale * (box.top + box.bottom)) / 2;
+  const width = CARET_WIDTH * weight;
+  return `<g transform="translate(${n(x)} ${n(y)}) scale(${scale})">
+  <path d="${d}" fill="none" stroke="${INK}" stroke-width="${weight}" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="${n(dot[0])}" cy="${dot[1]}" r="${n(weight * 0.65)}" fill="${INK}"/>
+  <rect x="${n(caretX - width / 2)}" y="${-CARET_TOP}" width="${n(width)}" height="${CARET_TOP + CARET_DROP}" rx="${n(width * 0.24)}" fill="${ACCENT}"/>
+  </g>`;
+}
+
+// The mark in tile space: an 824-unit square, the macOS icon grid's body. A
+// white card, turned counter-clockwise over a soft shadow, carries the word.
+// `weight` is the letter stroke; the small-size variant thickens it.
 function appMark(weight) {
-  const height = 250;
-  const width = 350;
-  const middle = height * 0.24;
-  const gap = 34;
-  const caretLength = 150;
-  const visualWidth = weight + width + gap + caretLength;
-  const left = 412 - visualWidth / 2 + weight / 2;
-  const top = 412 - (height + weight) / 2 - 10 + weight / 2;
-  const base = top + height;
-  const points = [
-    [0, top],
-    [width / 4, base],
-    [width / 2, top + middle],
-    [(3 * width) / 4, base],
-    [width, top],
-  ].map(([x, y]) => `${n(left + x)} ${n(y)}`);
-  return `<path d="M${points.join(" L")}" fill="none" stroke="${INK}" stroke-width="${weight}" stroke-linecap="round" stroke-linejoin="round"/>
-  ${caret(left + width + weight / 2 + gap, base, weight, caretLength)}`;
+  const corner = 412 - CARD / 2;
+  const sheet = (paint) =>
+    `<rect x="${corner}" y="${corner}" width="${CARD}" height="${CARD}" rx="${n(CARD_RADIUS)}" ${paint}/>`;
+  const turn = `rotate(${CARD_TILT} 412 412)`;
+  return `<defs>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${CARD_TOP}"/><stop offset="1" stop-color="${CARD_BOTTOM}"/></linearGradient>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="16"/></filter>
+    <filter id="cardEdge" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="2.5"/></filter>
+  </defs>
+  <g transform="translate(0 14) ${turn}">${sheet(`fill="#000" fill-opacity=".2" filter="url(#cardShadow)"`)}</g>
+  <g transform="translate(0 2) ${turn}">${sheet(`fill="#000" fill-opacity=".14" filter="url(#cardEdge)"`)}</g>
+  <g transform="${turn}">
+  ${sheet(`fill="url(#card)"`)}
+  ${wordmark(weight)}
+  </g>`;
 }
 
 const tileGradient = `<linearGradient id="tile" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${TILE_TOP}"/><stop offset="1" stop-color="${TILE_BOTTOM}"/></linearGradient>`;
 
 // macOS: 824 body on a 1024 canvas, 185 corner radius, baked drop shadow.
+// The card is clipped to the body, so the outline stays the squircle grid and
+// macOS 26 draws the icon natively instead of framing it as a legacy icon.
 function macAppIcon(weight, shadowOpacity) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     ${tileGradient}
     <filter id="blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="9"/></filter>
+    <clipPath id="body"><rect width="824" height="824" rx="185"/></clipPath>
   </defs>
   <rect x="100" y="110" width="824" height="824" rx="185" fill="#000" fill-opacity="${shadowOpacity}" filter="url(#blur)"/>
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
   <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="2"/>
-  <g transform="translate(100 100)">
+  <g transform="translate(100 100)" clip-path="url(#body)">
   ${appMark(weight)}
   </g>
 </svg>
 `;
 }
 
-// Windows and Android legacy: the tile nearly fills the canvas, no shadow.
+// Windows and Android legacy: the tile nearly fills the canvas, no outer
+// shadow.
 function flatAppIcon(weight, shape) {
   const body =
     shape === "circle"
@@ -92,12 +209,12 @@ function flatAppIcon(weight, shape) {
   <circle cx="512" cy="512" r="507" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="2"/>`
       : `<rect x="16" y="16" width="992" height="992" rx="200" fill="url(#tile)"/>
   <rect x="17" y="17" width="990" height="990" rx="199" fill="none" stroke="#000" stroke-opacity=".07" stroke-width="2"/>`;
-  const scale = shape === "circle" ? 0.92 : 992 / 824;
+  const scale = n(shape === "circle" ? 1 : 992 / 824);
   const offset = 512 - 412 * scale;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>${tileGradient}</defs>
   ${body}
-  <g transform="translate(${n(offset)} ${n(offset)}) scale(${n(scale)})">
+  <g transform="translate(${n(offset)} ${n(offset)}) scale(${scale})">
   ${appMark(weight)}
   </g>
 </svg>
@@ -105,25 +222,27 @@ function flatAppIcon(weight, shape) {
 }
 
 // iOS masks the corners itself and rejects alpha, so fill the whole square.
-function fullBleedAppIcon() {
-  const scale = 1024 / 824;
+function fullBleedAppIcon(weight) {
+  const scale = n(1024 / 824);
+  const offset = 512 - 412 * scale;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>${tileGradient}</defs>
   <rect width="1024" height="1024" fill="url(#tile)"/>
-  <g transform="scale(${n(scale)})">
-  ${appMark(62)}
+  <g transform="translate(${n(offset)} ${n(offset)}) scale(${scale})">
+  ${appMark(weight)}
   </g>
 </svg>
 `;
 }
 
-// Android adaptive foreground: 108dp canvas, mark kept inside the 66dp circle.
+// Android adaptive foreground: 108 dp canvas, the card's corners kept inside
+// the 66 dp safe circle so no launcher mask clips them.
 function androidForeground() {
-  const scale = 0.8;
+  const scale = 0.75;
   const offset = 512 - 412 * scale;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <g transform="translate(${n(offset)} ${n(offset)}) scale(${scale})">
-  ${appMark(66)}
+  ${appMark(24)}
   </g>
 </svg>
 `;
@@ -243,42 +362,48 @@ function ico(frames, out) {
 }
 
 // Sizes of 32 px and below come from the heavier-stroked small master.
-function iconset(name, regular, small, out) {
+// `leaveOut` names iconset entries to omit.
+function iconset(name, regular, small, out, leaveOut = []) {
   const set = join(work, `${name}.iconset`);
   mkdirSync(set);
   for (const base of [16, 32, 128, 256, 512]) {
     for (const scale of [1, 2]) {
       const px = base * scale;
       const suffix = scale === 2 ? "@2x" : "";
-      resize(
-        px <= 32 ? small : regular,
-        px,
-        join(set, `icon_${base}x${base}${suffix}.png`),
-      );
+      const file = `icon_${base}x${base}${suffix}.png`;
+      if (leaveOut.includes(file)) continue;
+      resize(px <= 32 ? small : regular, px, join(set, file));
     }
   }
   run("iconutil", ["-c", "icns", set, "-o", out]);
 }
 
-const macRegular = master("mac", macAppIcon(62, 0.3));
-const macSmall = master("mac-small", macAppIcon(84, 0.22));
-const flatRegular = master("flat", flatAppIcon(62, "square"));
-const flatSmall = master("flat-small", flatAppIcon(84, "square"));
-const round = master("round", flatAppIcon(62, "circle"));
-const iosMaster = master("ios", fullBleedAppIcon());
+const macRegular = master("mac", macAppIcon(24, 0.3));
+const macSmall = master("mac-small", macAppIcon(34, 0.22));
+const flatRegular = master("flat", flatAppIcon(24, "square"));
+const flatSmall = master("flat-small", flatAppIcon(34, "square"));
+const round = master("round", flatAppIcon(24, "circle"));
+const iosMaster = master("ios", fullBleedAppIcon(24));
+const iosSmall = master("ios-small", fullBleedAppIcon(34));
 const foreground = master("foreground", androidForeground());
 const docRegular = master("doc", documentIcon(38, 0.76));
 const docSmall = master("doc-small", documentIcon(54, 0.8));
 
 // Vector sources other code loads directly.
-writeFileSync(join(icons, "icon.svg"), macAppIcon(62, 0.3));
+writeFileSync(join(icons, "icon.svg"), macAppIcon(24, 0.3));
 writeFileSync(
   join(brand, "markdown-document-icon.svg"),
   documentIcon(38, 0.76),
 );
 
-// macOS bundle and the generic PNG set Tauri reads.
-iconset("app", macRegular, macSmall, join(icons, "icon.icns"));
+// macOS bundle and the generic PNG set Tauri reads. macOS 26 puts a legacy
+// icon in its grey box whenever it draws 16 or 32 pt at 1x from an explicit
+// 1x entry, even when the art fits the grid. Without those two entries it
+// scales down the @2x ones and draws the icon natively at every size.
+iconset("app", macRegular, macSmall, join(icons, "icon.icns"), [
+  "icon_16x16.png",
+  "icon_32x32.png",
+]);
 resize(macRegular, 512, join(icons, "icon.png"));
 resize(macSmall, 32, join(icons, "32x32.png"));
 resize(macRegular, 64, join(icons, "64x64.png"));
@@ -294,7 +419,7 @@ const icoFrames = [16, 24, 32, 48, 64, 256].map((size) => {
 ico(icoFrames, join(icons, "icon.ico"));
 for (const size of [30, 44, 71, 89, 107, 142, 150, 284, 310]) {
   resize(
-    size <= 44 ? flatSmall : flatRegular,
+    size <= 32 ? flatSmall : flatRegular,
     size,
     join(icons, `Square${size}x${size}Logo.png`),
   );
@@ -303,7 +428,9 @@ resize(flatRegular, 50, join(icons, "StoreLogo.png"));
 
 // iOS: opaque full-bleed squares, sizes matching the Xcode asset catalogue.
 const iosOpaque = join(work, "ios-opaque.png");
+const iosSmallOpaque = join(work, "ios-small-opaque.png");
 run("magick", [iosMaster, "-alpha", "remove", "-alpha", "off", iosOpaque]);
+run("magick", [iosSmall, "-alpha", "remove", "-alpha", "off", iosSmallOpaque]);
 const iosSizes = {
   "AppIcon-20x20@1x.png": 20,
   "AppIcon-20x20@2x.png": 40,
@@ -325,7 +452,11 @@ const iosSizes = {
   "AppIcon-512@2x.png": 1024,
 };
 for (const [file, size] of Object.entries(iosSizes)) {
-  resize(iosOpaque, size, join(icons, "ios", file));
+  resize(
+    size <= 32 ? iosSmallOpaque : iosOpaque,
+    size,
+    join(icons, "ios", file),
+  );
 }
 
 // Android: legacy square and round launchers, plus the adaptive foreground.
@@ -368,6 +499,7 @@ if (mastersFlag !== -1) {
     "flat-small",
     "round",
     "ios",
+    "ios-small",
     "foreground",
     "doc",
     "doc-small",

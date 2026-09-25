@@ -330,6 +330,49 @@ pub fn set_display_name(name: &str) {
     }
 }
 
+pub fn app_icon_choice(value: &str) -> &'static str {
+    if value == "dark" { "dark" } else { "light" }
+}
+
+/// Swaps the Dock icon. The choice is stored in user defaults and applied again
+/// on the next launch. An unknown value stays on the light icon.
+pub fn apply_app_icon(variant: &str) -> Result<(), String> {
+    let variant = app_icon_choice(variant);
+    let bytes: &[u8] = if variant == "dark" {
+        include_bytes!("../../brand/app-icon-dark.icns")
+    } else {
+        include_bytes!("../../brand/app-icon-light.icns")
+    };
+    unsafe extern "C" {
+        fn classic_set_application_icon(bytes: *const std::ffi::c_void, length: usize);
+        fn classic_store_app_icon_variant(variant: *const std::ffi::c_char);
+    }
+    unsafe {
+        classic_set_application_icon(bytes.as_ptr().cast(), bytes.len());
+    }
+    let stored = std::ffi::CString::new(variant).map_err(|e| e.to_string())?;
+    unsafe { classic_store_app_icon_variant(stored.as_ptr()) }
+    Ok(())
+}
+
+pub fn stored_app_icon() -> &'static str {
+    unsafe extern "C" {
+        fn classic_app_icon_variant() -> *const std::ffi::c_char;
+    }
+    let pointer = unsafe { classic_app_icon_variant() };
+    if pointer.is_null() {
+        return "light";
+    }
+    let value = unsafe { std::ffi::CStr::from_ptr(pointer) };
+    app_icon_choice(value.to_str().unwrap_or("light"))
+}
+
+#[tauri::command]
+pub fn set_app_icon(variant: String) -> Result<(), String> {
+    apply_app_icon(&variant)
+}
+
+
 /// True while this window is the main window, including during menu tracking.
 pub fn is_main_window(window: &tauri::WebviewWindow) -> bool {
     unsafe extern "C" {

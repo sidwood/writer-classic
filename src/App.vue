@@ -69,6 +69,9 @@ const generation = ref(0);
 const selection = ref("");
 const mode = ref("");
 const dark = ref(localStorage.getItem("writer-classic.dark") === "true");
+const appIcon = ref(
+  localStorage.getItem("writer-classic.app-icon") === "dark" ? "dark" : "light",
+);
 const vim = ref(localStorage.getItem("writer-classic.vim") !== "false");
 const storedFlag = (key: string) => localStorage.getItem(key) !== "false";
 const smartCopyPaste = ref(storedFlag("writer-classic.smart-copy-paste"));
@@ -710,6 +713,12 @@ async function action(command: string) {
       case "dark":
         dark.value = !dark.value;
         return;
+      case "app-icon-light":
+      case "app-icon-dark":
+        appIcon.value = command.endsWith("dark") ? "dark" : "light";
+        localStorage.setItem("writer-classic.app-icon", appIcon.value);
+        if (native) await invoke("set_app_icon", { variant: appIcon.value });
+        return;
       case "vim":
         vim.value = !vim.value;
         return;
@@ -1245,6 +1254,20 @@ onBeforeUnmount(() => {
             @click="action('dark')"
           >
             Dark Mode
+          </button>
+          <button
+            role="menuitemcheckbox"
+            :aria-checked="appIcon === 'light'"
+            @click="action('app-icon-light')"
+          >
+            Light App Icon
+          </button>
+          <button
+            role="menuitemcheckbox"
+            :aria-checked="appIcon === 'dark'"
+            @click="action('app-icon-dark')"
+          >
+            Dark App Icon
           </button>
         </div>
       </details>

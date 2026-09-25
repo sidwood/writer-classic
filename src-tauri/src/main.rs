@@ -303,6 +303,7 @@ fn install_scripting(app: &tauri::AppHandle) {
 enum MenuRoute<'a> {
     QuitAll,
     Help,
+    AppIcon(&'a str),
     RestoreVim,
     CloseAll,
     CloseWindow(&'a str),
@@ -326,6 +327,9 @@ fn menu_route<'a>(command: &str, focused: Option<&'a str>, labels: &[&'a str]) -
     }
     if command == "help" {
         return MenuRoute::Help;
+    }
+    if let Some(variant) = command.strip_prefix("app-icon-") {
+        return MenuRoute::AppIcon(macos::app_icon_choice(variant));
     }
     if command == "close-all" {
         return MenuRoute::CloseAll;
@@ -579,6 +583,24 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         false,
         Some("CmdOrCtrl+Alt+D"),
     )?)?;
+    let app_icon = Submenu::with_id(app, "app-icon", "App Icon", true)?;
+    app_icon.append(&CheckMenuItem::with_id(
+        app,
+        "app-icon-light",
+        "Light",
+        true,
+        true,
+        None::<&str>,
+    )?)?;
+    app_icon.append(&CheckMenuItem::with_id(
+        app,
+        "app-icon-dark",
+        "Dark",
+        true,
+        false,
+        None::<&str>,
+    )?)?;
+    view.append(&app_icon)?;
     root.append(&view)?;
     let window = Submenu::new(app, "Window", true)?;
     window.append(&PredefinedMenuItem::minimize(app, None)?)?;
@@ -628,6 +650,10 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
             MenuRoute::Help => {
                 let _ = macos::open_help();
             }
+            MenuRoute::AppIcon(variant) => {
+                let _ = macos::apply_app_icon(variant);
+                sync_app_icon_menu(&app, variant);
+            }
             MenuRoute::RestoreVim => {
                 let _ = set_vim_checked(app.clone(), vim_preference(app));
             }
@@ -651,6 +677,19 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
     });
     Ok(())
 }
+fn sync_app_icon_menu(app: &tauri::AppHandle, variant: &str) {
+    let Some(menu) = app.menu() else {
+        return;
+    };
+    let Ok(items) = menu.items() else {
+        return;
+    };
+    for item in items {
+        let _ = set_checked(&item, "app-icon-light", variant != "dark");
+        let _ = set_checked(&item, "app-icon-dark", variant == "dark");
+    }
+}
+
 
 fn document_title(path: Option<&Path>) -> String {
     path.and_then(|path| path.file_name())
@@ -779,13 +818,17 @@ fn main() {
             macos::detect_data,
             macos::open_detected_url,
             macos::script_note_document,
-            macos::script_forget_document
+            macos::script_forget_document,
+            macos::set_app_icon
         ])
         .setup(|app| {
             macos::set_display_name("Writer Classic");
             install_title_menu(app.handle());
             install_scripting(app.handle());
             menu(app)?;
+            let icon = macos::stored_app_icon();
+            let _ = macos::apply_app_icon(icon);
+            sync_app_icon_menu(app.handle(), icon);
             if let Some(directory) = std::env::var_os("WRITER_CLASSIC_NATIVE_SELFTEST") {
                 let directory = std::ffi::CString::new(directory.to_string_lossy().into_owned())
                     .map_err(|e| e.to_string())?;
@@ -901,6 +944,14 @@ mod tests {
         assert_eq!(
             menu_route("dark", menu_focus(None, None, None), &labels),
             MenuRoute::Drop
+        );
+        assert_eq!(
+            menu_route("app-icon-dark", None, &labels),
+            MenuRoute::AppIcon("dark")
+        );
+        assert_eq!(
+            menu_route("app-icon-other", None, &[]),
+            MenuRoute::AppIcon("light")
         );
     }
     #[test]

@@ -47,7 +47,7 @@ $ security find-identity -v -p codesigning
 
 exit=0
 
-$ qlmanage -g /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/Writer Classic.qlgenerator -c net.daringfireball.markdown -p /var/folders/by/s0p7btlx5sn5g9b8285mnjcw0000gn/T/tmp6wdoypn8/sample.md
+$ qlmanage -g /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/Writer Classic.qlgenerator -c net.daringfireball.markdown -p /var/folders/by/s0p7btlx5sn5g9b8285mnjcw0000gn/T/tmp3ys1anf9/sample.md
 
 Can't get generator at /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/Writer Classic.qlgenerator
 

@@ -3,14 +3,19 @@
 All icon art is original. It is drawn from vector geometry in
 `brand/build-icons.mjs`. No bytes, glyphs or outlines come from iA Writer
 Classic, its app icon, or its `docicon-md.icns`. The installed app icon was
-looked at only for general composition: a quiet light tile, a short lowercase
-mark, one accent colour.
+looked at only for general composition: a white card turned on a light ground,
+a lowercase word, a tall caret in one accent colour.
 
 ## The marks
 
-- **App icon:** a lowercase monoline `w` in graphite (`#2c2c2f`), followed by a
-  vermilion (`#e8553a`) underscore caret. It sits on a warm light rounded tile
-  (`#fcfbf8` to `#ebe8e2`).
+- **App icon:** a white paper card (`#ffffff` to `#f6f5f2`), its corners
+  rounded to 0.045 of its side, turned 8° counter-clockwise with a soft shadow
+  on a light warm-grey tile (`#ebe8e2` to `#dbd7cf`). The tile is the 824/1024
+  macOS squircle grid body and the card stays inside it, so macOS 26 draws the
+  icon natively rather than in its grey legacy frame. Centred on the card,
+  `classic` is drawn as original monoline geometric strokes in graphite
+  (`#2c2c2f`), not set in a font, and followed by a tall vermilion (`#e8553a`)
+  caret.
 - **Markdown document icon:** a portrait sheet with a flat folded corner and
   `md_` set in the same stroke and caret style.
 - Sizes of 32 px and below use heavier-stroked masters so the marks stay
@@ -48,16 +53,21 @@ must name it in `CFBundleTypeIconFile`.
 | File                                                             | Use                                                                                                 |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `icon.svg`                                                       | Vector master of the macOS app icon: 824 px body on a 1024 grid, baked shadow.                      |
-| `icon.icns`                                                      | macOS app icon, named in `tauri.conf.json` `bundle.icon`.                                           |
+| `icon.icns`                                                      | macOS app icon, named in `tauri.conf.json` `bundle.icon`. Has no 1x 16 or 32 px entries.            |
 | `icon.png`                                                       | 512 px app icon, named in `bundle.icon`. Also used as the Linux and window icon.                    |
 | `32x32.png`, `64x64.png`, `128x128.png`, `128x128@2x.png`        | Linux bundle sizes, macOS grid.                                                                     |
-| `icon.ico`                                                       | Windows app icon, with 16, 24, 32, 48, 64 and 256 px frames. Flat tile, no shadow.                  |
+| `icon.ico`                                                       | Windows app icon, with 16, 24, 32, 48, 64 and 256 px frames. Flat tile, no outer shadow.            |
 | `Square30x30Logo.png` … `Square310x310Logo.png`, `StoreLogo.png` | Windows Store and Start tile logos. Flat tile.                                                      |
 | `ios/AppIcon-*.png`                                              | iOS asset catalogue. Opaque full-bleed squares, because iOS applies its own mask and rejects alpha. |
 | `android/mipmap-*/ic_launcher.png`                               | Android legacy square launcher icon.                                                                |
 | `android/mipmap-*/ic_launcher_round.png`                         | Android legacy round launcher icon.                                                                 |
-| `android/mipmap-*/ic_launcher_foreground.png`                    | Android adaptive-icon foreground. Transparent, with the mark inside the 66 dp safe zone.            |
-| `android/values/ic_launcher_background.xml`                      | Android adaptive-icon background colour (`#f4f2ed`).                                                |
+| `android/mipmap-*/ic_launcher_foreground.png`                    | Android adaptive-icon foreground. Transparent, with the card and mark inside the 66 dp safe zone.   |
+| `android/values/ic_launcher_background.xml`                      | Android adaptive-icon background colour (`#e3e0d9`).                                                |
+
+`icon.icns` leaves out the 1x 16 and 32 px entries. When macOS 26 draws a
+legacy icon from those entries, it puts the icon in its grey box, even when the
+art fits the grid. Without them, it scales the @2x entries down and draws the
+icon natively at every size.
 
 `android/mipmap-anydpi-v26/ic_launcher.xml` is unchanged. It still points the
 adaptive icon at the foreground and background above.
