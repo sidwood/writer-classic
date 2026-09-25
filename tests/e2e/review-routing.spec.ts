@@ -24,7 +24,11 @@ function install(
       if (recovered)
         localStorage.setItem(
           "writer-classic.draft.document-recovered",
-          JSON.stringify({ text: "recovered", path: null, savedText: "" }),
+          JSON.stringify({
+            text: "recovered",
+            path: "/tmp/Notes.md",
+            savedText: "",
+          }),
         );
       const bridge: any = {
         calls: [],
@@ -32,6 +36,9 @@ function install(
         delayRead,
         menu(action: string) {
           callbacks.get(events.get("menu-action")!)?.({ payload: action });
+        },
+        emit(event: string) {
+          callbacks.get(events.get(event)!)?.({ payload: null });
         },
         async invoke(command: string, args: any) {
           this.calls.push({ command, args });
@@ -41,8 +48,9 @@ function install(
             return ++id;
           }
           if (command === "read_text" || command === "read_encoded") {
-            if (this.delayRead) {
+            if (this.delayRead || this.delayNextRead) {
               this.delayRead = false;
+              this.delayNextRead = false;
               await new Promise((resolve) => {
                 this.releaseRead = resolve;
               });
@@ -50,6 +58,8 @@ function install(
             if (failRead) throw "disk unavailable";
             return this.disk;
           }
+          if (command === "write_encoded" && this.rejectEncoding)
+            throw "This encoding cannot represent the document. Save as UTF-8 instead.";
           if (command === "write_text" || command === "write_encoded") {
             if (this.delayNextWrite) {
               this.delayNextWrite = false;
@@ -58,6 +68,7 @@ function install(
               });
             }
             this.disk = args.text;
+            this.lastEncoding = args.encoding ?? 4;
           }
           if (command === "icloud_documents") return "/tmp/icloud/Documents";
           if (command === "plugin:window|get_all_windows") return [];
@@ -480,12 +491,13 @@ test("new and recovered document windows stay hidden until the header is set", a
         (call: any) =>
           call.command === "plugin:webview|create_webview_window" &&
           call.args.options?.label === "document-recovered",
-      )?.args.options.visible,
+      )?.args.options,
     };
   });
   expect(beforeNew.header).toBeGreaterThanOrEqual(0);
   expect(beforeNew.shown).toBeGreaterThan(beforeNew.header);
-  expect(beforeNew.recovered).toBe(false);
+  expect(beforeNew.recovered.visible).toBe(false);
+  expect(beforeNew.recovered.title).toBe("Notes.md");
   await page.keyboard.press("Meta+n");
   await expect
     .poll(() =>
@@ -499,4 +511,148 @@ test("new and recovered document windows stay hidden until the header is set", a
       ),
     )
     .toBe(true);
+});
+test("revert does not replace text typed during the disk read", async ({
+  page,
+}) => {
+  await install(page, {
+    draft: JSON.stringify({
+      path: "/fixture/a.md",
+      text: "saved",
+      savedText: "saved",
+    }),
+    disk: "saved",
+  });
+  await page.goto("/");
+  await page.waitForFunction(() =>
+    (window as any).testBridge.calls.some(
+      (call: any) =>
+        call.command === "plugin:event|listen" &&
+        call.args.event === "menu-action",
+    ),
+  );
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  await expect(editor).toHaveText("saved");
+  await page.evaluate(() => {
+    (window as any).testBridge.delayNextRead = true;
+  });
+  await page.evaluate(() => (window as any).testBridge.menu("revert"));
+  await page.waitForFunction(() => !!(window as any).testBridge.releaseRead);
+  await editor.fill("typed during revert");
+  await page.evaluate(() => (window as any).testBridge.releaseRead());
+  await expect(editor).toHaveText("typed during revert");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem("writer-classic.draft.document-risk") ||
+              "null",
+          )?.text,
+      ),
+    )
+    .toBe("typed during revert");
+});
+
+test("versions-finished does not replace text typed during the disk read", async ({
+  page,
+}) => {
+  await install(page, {
+    draft: JSON.stringify({
+      path: "/fixture/a.md",
+      text: "saved",
+      savedText: "saved",
+    }),
+    disk: "saved",
+  });
+  await page.goto("/");
+  await page.waitForFunction(() =>
+    (window as any).testBridge.calls.some(
+      (call: any) =>
+        call.command === "plugin:event|listen" &&
+        call.args.event === "versions-finished",
+    ),
+  );
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  await expect(editor).toHaveText("saved");
+  await page.evaluate(() => {
+    const bridge = (window as any).testBridge;
+    bridge.disk = "disk version";
+    bridge.delayNextRead = true;
+    bridge.emit("versions-finished");
+  });
+  await page.waitForFunction(() => !!(window as any).testBridge.releaseRead);
+  await editor.fill("typed during versions");
+  await page.evaluate(() => (window as any).testBridge.releaseRead());
+  await expect(editor).toHaveText("typed during versions");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem("writer-classic.draft.document-risk") ||
+              "null",
+          )?.text,
+      ),
+    )
+    .toBe("typed during versions");
+});
+
+test("Save As writes UTF-8 after an encoding recovery is offered", async ({
+  page,
+}) => {
+  await install(page);
+  await page.goto("/");
+  await page.evaluate(() => (window as any).testBridge.menu("open"));
+  await page.waitForFunction(() =>
+    (window as any).testBridge.calls.some(
+      (call: any) => call.command === "read_encoded",
+    ),
+  );
+  await page.evaluate(() => {
+    (window as any).testBridge.rejectEncoding = true;
+  });
+  await page.getByRole("textbox", { name: "Document text" }).fill("漢");
+  await page.evaluate(() => (window as any).testBridge.menu("save"));
+  await expect(page.getByRole("alert")).toContainText("Save as UTF-8");
+  await page.evaluate(() => (window as any).testBridge.menu("save-as"));
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as any).testBridge.calls.some(
+          (call: any) =>
+            call.command === "write_text" && call.args.text === "漢",
+        ),
+      ),
+    )
+    .toBe(true);
+});
+
+test("native smart link clicks open through the workspace", async ({
+  page,
+}) => {
+  await install(page);
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  await editor.fill("See https://example.com/notes");
+  await page.evaluate(() => {
+    (window as any).opened = [];
+    window.open = ((url: string) => {
+      (window as any).opened.push(url);
+      return null;
+    }) as typeof window.open;
+  });
+  await page.locator(".detected-link").click({ modifiers: ["Meta"] });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (window as any).testBridge.calls.some(
+          (call: any) =>
+            call.command === "open_detected_url" &&
+            call.args.url === "https://example.com/notes",
+        ),
+      ),
+    )
+    .toBe(true);
+  expect(await page.evaluate(() => (window as any).opened)).toEqual([]);
 });

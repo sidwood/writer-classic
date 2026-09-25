@@ -250,6 +250,11 @@ footer button[aria-pressed="true"] {
 .format-bar button {
   padding: 5px 8px;
   font-weight: 600;
+  color: var(--muted);
+}
+.format-bar button[aria-pressed="true"] {
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 .bold {
   font-weight: 800 !important;
@@ -379,6 +384,13 @@ main:has(.cm-search) footer {
 }
 .print-document {
   display: none;
+}
+.print-document.plain,
+.print-document.plain pre {
+  font:
+    13px/1.5 Menlo,
+    monospace;
+  white-space: pre-wrap;
 }
 @media (max-width: 760px) {
   .format-bar button {

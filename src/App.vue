@@ -20,6 +20,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import DOMPurify from "dompurify";
 import WriterEditor from "./WriterEditor.vue";
 import { WriterDocument, statistics } from "./document";
+import type { FormatMarks } from "./format-marks";
 import { htmlDocument, renderMarkdown } from "./markdown";
 import { exportDocx, exportRtf, importDocx } from "./export";
 import documentIconUrl from "../brand/markdown-document-icon.svg";
@@ -30,6 +31,12 @@ function pngBytes(dataUrl: string) {
 }
 const headerIcon = pngBytes(nativeIconInline);
 
+function fileTitle(path: string | null | undefined) {
+  return path?.split(/[/\\]/).pop() || "Untitled";
+}
+function encodingRecovery(reason: unknown) {
+  return String(reason).includes("Save as UTF-8");
+}
 async function updateDocumentHeader() {
   document.title = doc.title;
   if (!native) return;
@@ -47,6 +54,16 @@ const draftKey = `writer-classic.draft.${label}`;
 const doc = reactive(new WriterDocument());
 const textEncoding = ref(4);
 let lastOpenedText = "";
+const utf8Recovery = ref(false);
+const printFormatted = ref(false);
+const marks = ref<FormatMarks>({
+  heading: 0,
+  bold: false,
+  italic: false,
+  strike: false,
+  ordered: false,
+  unordered: false,
+});
 const editor = ref<InstanceType<typeof WriterEditor>>();
 const generation = ref(0);
 const selection = ref("");
@@ -233,6 +250,7 @@ function changed(text: string) {
 }
 function scheduleAutosave() {
   clearTimeout(autosave);
+  if (utf8Recovery.value) return;
   if (native && doc.path && doc.dirty && !pending.value)
     autosave = setTimeout(() => {
       void saveDocument(false, true);
@@ -270,17 +288,32 @@ async function saveDocument(
     if (native) {
       if (!path || saveAs)
         path = await save({
-          title: "Save document",
+          title:
+            saveAs && utf8Recovery.value ? "Save as UTF-8" : "Save document",
           defaultPath: path || "Untitled.md",
           filters: [{ name: "Plain Text", extensions: ["md", "txt"] }],
         });
       if (!path) return false;
-      await invoke(textEncoding.value === 4 ? "write_text" : "write_encoded", {
-        encoding: textEncoding.value,
-        path,
-        text,
-        expected: path === doc.path && !saveAs ? doc.savedText : null,
-      });
+      let encoding = textEncoding.value;
+      if (saveAs && utf8Recovery.value) encoding = 4;
+      try {
+        await invoke(encoding === 4 ? "write_text" : "write_encoded", {
+          encoding,
+          path,
+          text,
+          expected: path === doc.path && !saveAs ? doc.savedText : null,
+        });
+      } catch (reason) {
+        if (!encodingRecovery(reason)) throw reason;
+        utf8Recovery.value = true;
+        if (!saveAs) throw reason;
+        encoding = 4;
+        await invoke("write_text", { path, text, expected: null });
+      }
+      if (encoding === 4) {
+        textEncoding.value = 4;
+        utf8Recovery.value = false;
+      }
       doc.saved(path, text);
       remember(path);
       persistDraft();
@@ -308,6 +341,7 @@ async function saveDocument(
     }
     return true;
   } catch (reason) {
+    if (encodingRecovery(reason)) utf8Recovery.value = true;
     showError(reason);
     return false;
   } finally {
@@ -372,7 +406,7 @@ async function newDocument(
       JSON.stringify({ text, path, savedText, encoding }),
     );
     new WebviewWindow(id, {
-      title: "Untitled",
+      title: fileTitle(path),
       width: 860,
       height: 640,
       minWidth: 560,
@@ -382,6 +416,7 @@ async function newDocument(
   } else await confirmTransition(async () => applyDocument(null, text, ""));
 }
 async function openPath(path: string, replace = false, encoding = 4) {
+  const started = editEpoch;
   try {
     const isDocx = path.toLowerCase().endsWith(".docx");
     const text = isDocx
@@ -392,6 +427,7 @@ async function openPath(path: string, replace = false, encoding = 4) {
           path,
           encoding,
         });
+    if (replace && started !== editEpoch) return;
     if (native && !replace && (doc.text || doc.path))
       await newDocument(
         text,
@@ -524,14 +560,18 @@ async function togglePreview() {
     refreshPreview();
   }
 }
+async function printDocument(formatted: boolean) {
+  printFormatted.value = formatted;
+  if (formatted) refreshPreview();
+  await nextTick();
+  await window.print();
+}
 async function exportDocument() {
   try {
     const type = exportType.value;
     if (type === "pdf") {
       exportDialog.value = false;
-      refreshPreview();
-      await nextTick();
-      await window.print();
+      await printDocument(true);
       return;
     }
     const bytes =
@@ -669,10 +709,9 @@ async function action(command: string) {
         exportDialog.value = true;
         return;
       case "print":
-        refreshPreview();
-        await nextTick();
-        await window.print();
-        return;
+        return await printDocument(false);
+      case "print-formatted":
+        return await printDocument(true);
       case "copy-html":
         await navigator.clipboard.writeText(
           renderMarkdown(selection.value || doc.text),
@@ -731,6 +770,7 @@ function shortcuts(event: KeyboardEvent) {
         arrowleft: "previous-sentence",
         backspace: "clear",
         s: "save-as",
+        p: "print-formatted",
       } as Record<string, string>
     )[key];
   else if (event.shiftKey)
@@ -865,9 +905,9 @@ onMounted(async () => {
     const initialPath = new URLSearchParams(location.search).get("open");
     if (native && initialPath) await openPath(initialPath);
     await updateDocumentHeader();
+    if (native) await getCurrentWindow().show();
     if (native) {
       noteScriptDocument();
-      await getCurrentWindow().show();
       await invoke("set_vim_checked", { checked: vim.value });
       await invoke("set_recent_files", { paths: recent.value });
       cleanups.push(
@@ -893,15 +933,24 @@ onMounted(async () => {
         for (const key of Object.keys(localStorage)) {
           if (!key.startsWith("writer-classic.draft.document-")) continue;
           const documentLabel = key.slice("writer-classic.draft.".length);
-          if (!existing.has(documentLabel))
+          if (!existing.has(documentLabel)) {
+            let recoveredTitle = "Untitled";
+            try {
+              recoveredTitle = fileTitle(
+                JSON.parse(localStorage.getItem(key) || "{}").path,
+              );
+            } catch {
+              recoveredTitle = "Untitled";
+            }
             new WebviewWindow(documentLabel, {
-              title: "Untitled",
+              title: recoveredTitle,
               width: 860,
               height: 640,
               minWidth: 560,
               minHeight: 320,
               visible: false,
             });
+          }
         }
       }
       for (const [weight, css] of [
@@ -1074,7 +1123,9 @@ onBeforeUnmount(() => {
           <button @click="action('save-as')">Save As…</button
           ><button @click="action('import')">Import…</button
           ><button @click="action('export')">Export…</button>
-          <button @click="action('print')">Print Formatted…</button
+          <button @click="action('print')">Print <kbd>⌘P</kbd></button
+          ><button @click="action('print-formatted')">
+            Print Formatted… <kbd>⌥⌘P</kbd></button
           ><button @click="action('icloud-browse')">Browse iCloud…</button
           ><button @click="action('icloud-open')">Open from iCloud…</button
           ><button @click="action('icloud-save')">Save to iCloud…</button
@@ -1167,8 +1218,11 @@ onBeforeUnmount(() => {
     </nav>
     <input ref="fileInput" type="file" hidden @change="browserOpen" />
     <div v-if="error" role="alert" class="error-message">
-      <span>{{ error }}</span
-      ><button aria-label="Dismiss error" @click="error = ''">Dismiss</button>
+      <span>{{ error }}</span>
+      <button v-if="utf8Recovery" @click="saveDocument(true)">
+        Save as UTF-8
+      </button>
+      <button aria-label="Dismiss error" @click="error = ''">Dismiss</button>
     </div>
     <p v-if="dataNotice" class="data-notice" role="status">{{ dataNotice }}</p>
     <WriterEditor
@@ -1183,6 +1237,7 @@ onBeforeUnmount(() => {
       @change="changed"
       @selection="selection = $event"
       @mode="mode = $event"
+      @marks="marks = $event"
       @command="action"
       @data-action="dataNotice = $event"
     />
@@ -1201,6 +1256,7 @@ onBeforeUnmount(() => {
           :key="level"
           :title="`Heading ${level} (⌘${level})`"
           :aria-label="`Heading ${level}`"
+          :aria-pressed="marks.heading === level"
           @mousedown.prevent
           @click="action(`heading-${level}`)"
         >
@@ -1210,6 +1266,7 @@ onBeforeUnmount(() => {
           class="bold"
           title="Strong (⌘B)"
           aria-label="Strong"
+          :aria-pressed="marks.bold"
           @mousedown.prevent
           @click="action('bold')"
         >
@@ -1219,6 +1276,7 @@ onBeforeUnmount(() => {
           class="italic"
           title="Emphasis (⌘I)"
           aria-label="Emphasis"
+          :aria-pressed="marks.italic"
           @mousedown.prevent
           @click="action('italic')"
         >
@@ -1228,6 +1286,7 @@ onBeforeUnmount(() => {
           class="strike"
           title="Strikethrough (⌘-)"
           aria-label="Strikethrough"
+          :aria-pressed="marks.strike"
           @mousedown.prevent
           @click="action('strike')"
         >
@@ -1235,6 +1294,8 @@ onBeforeUnmount(() => {
         </button>
         <button
           title="Ordered item (⇧⌘L)"
+          aria-label="Ordered item"
+          :aria-pressed="marks.ordered"
           @mousedown.prevent
           @click="action('ordered')"
         >
@@ -1242,6 +1303,8 @@ onBeforeUnmount(() => {
         </button>
         <button
           title="Unordered item (⌘L)"
+          aria-label="Unordered item"
+          :aria-pressed="marks.unordered"
           @mousedown.prevent
           @click="action('unordered')"
         >
@@ -1344,6 +1407,12 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </div>
-    <article class="print-document" v-html="previewHtml" />
+    <article
+      class="print-document"
+      :class="printFormatted ? 'formatted' : 'plain'"
+    >
+      <pre v-if="!printFormatted">{{ doc.text }}</pre>
+      <div v-else v-html="previewHtml" />
+    </article>
   </main>
 </template>

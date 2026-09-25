@@ -1,0 +1,56 @@
+$ file /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/WriterClassicPreview.appex/Contents/MacOS/WriterClassicPreview
+/Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/WriterClassicPreview.appex/Contents/MacOS/WriterClassicPreview: Mach-O 64-bit executable arm64
+
+
+exit=0
+
+$ codesign -dv --entitlements - /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/WriterClassicPreview.appex
+[Dict]
+	[Key] com.apple.security.app-sandbox
+	[Value]
+		[Bool] true
+	[Key] com.apple.security.files.user-selected.read-only
+	[Value]
+		[Bool] true
+
+Executable=/Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/WriterClassicPreview.appex/Contents/MacOS/WriterClassicPreview
+Identifier=com.sidwood.writer-classic.preview
+Format=bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=507 flags=0x2(adhoc) hashes=5+7 location=embedded
+Signature=adhoc
+Info.plist entries=11
+TeamIdentifier=not set
+Sealed Resources version=2 rules=13 files=0
+Internal requirements count=0 size=12
+
+exit=0
+
+$ pluginkit -a -v /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/WriterClassicPreview.appex
+
+
+exit=0
+
+$ pluginkit -m -vv -A -D -i com.sidwood.writer-classic.preview
+  (no matches)
+
+
+exit=0
+
+$ pluginkit -r -v /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/WriterClassicPreview.appex
+
+
+exit=0
+
+$ security find-identity -v -p codesigning
+     0 valid identities found
+
+
+exit=0
+
+$ qlmanage -g /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/Writer Classic.qlgenerator -c net.daringfireball.markdown -p /var/folders/by/s0p7btlx5sn5g9b8285mnjcw0000gn/T/tmp6wdoypn8/sample.md
+
+Can't get generator at /Users/sidwood/code/ia-writer-classic-clone.goal/src-tauri/target/quicklook/Writer Classic.qlgenerator
+
+exit=timeout after 8s
+
+BLOCKER: pluginkit -a exits 0 but does not list com.sidwood.writer-classic.preview. security find-identity reports 0 valid identities, and the appex signature is ad-hoc. Registration still requires a signing identity. qlmanage -g reports Can't get generator. System Quick Look is not claimed to work on this Mac.

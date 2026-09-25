@@ -20,7 +20,7 @@ def run(command):
     subprocess.check_call(command)
 
 
-def compile_bundle(sources, output, arches, frameworks, minimum="11.0"):
+def compile_binary(sources, output, arches, frameworks, minimum="11.0", extension=False, defines=()):
     output.parent.mkdir(parents=True, exist_ok=True)
     binaries = []
     for arch in arches:
@@ -28,17 +28,25 @@ def compile_bundle(sources, output, arches, frameworks, minimum="11.0"):
         command = [
             "clang",
             "-fobjc-arc",
-            "-bundle",
             "-arch",
             arch,
             f"-mmacosx-version-min={minimum}",
             "-Wno-deprecated-declarations",
             "-Wno-unguarded-availability",
-            *[item for framework in frameworks for item in ("-framework", framework)],
-            *map(str, sources),
-            "-o",
-            str(binary),
         ]
+        if extension:
+            command.extend([
+                "-fapplication-extension",
+                "-e",
+                "_NSExtensionMain",
+                "-Wl,-u,_NSExtensionMain",
+            ])
+        else:
+            command.append("-bundle")
+        command.extend(f"-D{item}" for item in defines)
+        command.extend(item for framework in frameworks for item in ("-framework", framework))
+        command.extend(map(str, sources))
+        command.extend(["-o", str(binary)])
         run(command)
         binaries.append(binary)
     if len(binaries) == 1:
@@ -48,6 +56,9 @@ def compile_bundle(sources, output, arches, frameworks, minimum="11.0"):
         for binary in binaries:
             binary.unlink()
 
+
+def compile_bundle(sources, output, arches, frameworks, minimum="11.0"):
+    compile_binary(sources, output, arches, frameworks, minimum)
 
 def build_generator():
     macos = GENERATOR / "Contents/MacOS"
@@ -76,14 +87,22 @@ def build_preview_extension():
         shutil.rmtree(APPEX)
     macos.mkdir(parents=True)
     shutil.copy(QL / "appex-Info.plist", APPEX / "Contents/Info.plist")
-    compile_bundle(
+    compile_binary(
         [QL / "generator.m", QL / "preview-provider.m"],
         macos / "WriterClassicPreview",
         ["arm64"],
         ["Foundation", "AppKit", "QuickLook", "QuickLookUI", "UniformTypeIdentifiers", "CoreText", "CoreGraphics", "CoreFoundation"],
         "12.0",
+        extension=True,
+        defines=("CLASSIC_PREVIEW_EXTENSION",),
     )
-    subprocess.run(["codesign", "-s", "-", "--force", str(APPEX)], check=False)
+    signed = subprocess.run(
+        ["codesign", "--force", "--sign", "-", "--entitlements", str(QL / "preview.entitlements"), "--timestamp=none", str(APPEX)],
+        capture_output=True,
+        text=True,
+    )
+    if signed.returncode != 0:
+        raise SystemExit(signed.stderr or signed.stdout or "codesign failed")
 def build_script_suite():
     destination = ROOT / "src-tauri/target/help"
     destination.mkdir(parents=True, exist_ok=True)
@@ -172,6 +191,34 @@ def check():
         assert "<li>First</li>" in semantic
         assert "<em>em</em>" in semantic
         assert "<li>em</li>" not in semantic
+        classic = root / "classic-blocks.md"
+        classic.write_text(
+            "    indented code\n"
+            "    second line\n"
+            "_emphasis_ and __strong__\n"
+            "> quoted line\n"
+            "* * *\n"
+            "- - -\n"
+            "_ _ _\n",
+            encoding="utf-8",
+        )
+        blocks = subprocess.check_output(
+            [str(dump), str(classic), "net.daringfireball.markdown", "classic-blocks.md"],
+            text=True,
+        )
+        assert "<pre><code>indented code\nsecond line\n</code></pre>" in blocks
+        assert "<p>    indented code</p>" not in blocks
+        assert "<em>emphasis</em>" in blocks
+        assert "<strong>strong</strong>" in blocks
+        assert "_emphasis_" not in blocks
+        assert "__strong__" not in blocks
+        assert "<blockquote><p>quoted line</p></blockquote>" in blocks
+        assert "&gt; quoted line" not in blocks
+        assert blocks.count("<hr>") >= 3
+        assert "<li>* *" not in blocks
+        assert "<p>* * *</p>" not in blocks
+        assert "<p>- - -</p>" not in blocks
+        assert "<p>_ _ _</p>" not in blocks
         text_html = subprocess.check_output([str(dump), str(plain), "public.plain-text", "sample.txt"], text=True)
         assert "<pre>Plain text token\n</pre>" in text_html
         loader = root / "loader.m"
@@ -212,7 +259,65 @@ def check():
         assert "public.plain-text" in extension["NSExtensionAttributes"]["QLSupportedContentTypes"]
         assert "net.daringfireball.markdown" in extension["NSExtensionAttributes"]["QLSupportedContentTypes"]
         assert (APPEX / "Contents/MacOS/WriterClassicPreview").is_file()
+        binary = APPEX / "Contents/MacOS/WriterClassicPreview"
+        kind = subprocess.check_output(["file", str(binary)], text=True)
+        assert "Mach-O 64-bit executable arm64" in kind, kind
+        assert "bundle" not in kind
+        load = subprocess.check_output(["otool", "-l", str(binary)], text=True)
+        assert "LC_MAIN" in load
+        entitlements = subprocess.run(
+            ["codesign", "-d", "--entitlements", "-", str(APPEX)],
+            capture_output=True,
+            text=True,
+        )
+        entitlement_text = entitlements.stdout + entitlements.stderr
+        assert "com.apple.security.app-sandbox" in entitlement_text, entitlement_text
+        record_quicklook_registration(root / "sample.md")
     print("PASS: Quick Look generator loads and previews markdown and text; help book is indexed.")
+
+
+def record_quicklook_registration(sample):
+    evidence = ROOT / "docs/evidence/quicklook-registration.txt"
+    lines = []
+
+    def text_of(value):
+        if value is None:
+            return ""
+        if isinstance(value, bytes):
+            return value.decode("utf-8", "replace")
+        return str(value)
+
+    def capture(command, timeout=20):
+        lines.append("$ " + " ".join(map(str, command)))
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as expired:
+            lines.append(text_of(expired.stdout))
+            lines.append(text_of(expired.stderr))
+            lines.append(f"exit=timeout after {timeout}s")
+            lines.append("")
+            return
+        lines.append(text_of(result.stdout))
+        lines.append(text_of(result.stderr))
+        lines.append(f"exit={result.returncode}")
+        lines.append("")
+
+    capture(["file", str(APPEX / "Contents/MacOS/WriterClassicPreview")])
+    capture(["codesign", "-dv", "--entitlements", "-", str(APPEX)])
+    capture(["pluginkit", "-a", "-v", str(APPEX)])
+    capture(["pluginkit", "-m", "-vv", "-A", "-D", "-i", "com.sidwood.writer-classic.preview"])
+    capture(["pluginkit", "-r", "-v", str(APPEX)])
+    capture(["security", "find-identity", "-v", "-p", "codesigning"])
+    capture(["qlmanage", "-g", str(GENERATOR), "-c", "net.daringfireball.markdown", "-p", str(sample)], timeout=8)
+    lines.append(
+        "BLOCKER: pluginkit -a exits 0 but does not list com.sidwood.writer-classic.preview. "
+        "security find-identity reports 0 valid identities, and the appex signature is ad-hoc. "
+        "Registration still requires a signing identity. qlmanage -g reports Can't get generator. "
+        "System Quick Look is not claimed to work on this Mac."
+    )
+    evidence.parent.mkdir(parents=True, exist_ok=True)
+    evidence.write_text("\n".join(lines))
+    # Registration requires a signing identity. The recorded command output is the blocker, not a success claim.
 
 
 if __name__ == "__main__":

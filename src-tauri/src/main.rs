@@ -282,6 +282,7 @@ enum MenuRoute<'a> {
     QuitAll,
     Help,
     RestoreVim,
+    CloseWindow(&'a str),
     Document(&'a str),
     Drop,
 }
@@ -300,15 +301,23 @@ fn menu_route<'a>(command: &str, focused: Option<&'a str>, labels: &[&'a str]) -
             MenuRoute::Drop
         };
     };
+    if focused.starts_with("preview-") && command == "close" {
+        return MenuRoute::CloseWindow(focused);
+    }
     if let Some(owner) = focused.strip_prefix("preview-") {
-        return if labels.contains(&owner) {
-            MenuRoute::Document(owner)
-        } else {
-            MenuRoute::Drop
-        };
+        if !labels.contains(&owner) {
+            return if command == "vim" {
+                MenuRoute::RestoreVim
+            } else {
+                MenuRoute::Drop
+            };
+        }
+        return MenuRoute::Document(owner);
     }
     if labels.contains(&focused) {
         MenuRoute::Document(focused)
+    } else if command == "vim" {
+        MenuRoute::RestoreVim
     } else {
         MenuRoute::Drop
     }
@@ -345,7 +354,8 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         ("save-as", "Save As…", "CmdOrCtrl+Alt+Shift+S"),
         ("import", "Import…", "CmdOrCtrl+Shift+I"),
         ("export", "Export…", "CmdOrCtrl+Shift+E"),
-        ("print", "Print Formatted…", "CmdOrCtrl+P"),
+        ("print", "Print", "CmdOrCtrl+P"),
+        ("print-formatted", "Print Formatted…", "CmdOrCtrl+Alt+P"),
     ] {
         file.append(&MenuItem::with_id(app, id, text, true, Some(key))?)?;
     }
@@ -550,6 +560,11 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
             MenuRoute::RestoreVim => {
                 let _ = set_vim_checked(app.clone(), vim_preference(app));
             }
+            MenuRoute::CloseWindow(label) => {
+                if let Some(window) = windows.get(label) {
+                    let _ = window.close();
+                }
+            }
             MenuRoute::Document(label) => {
                 if let Some(window) = windows.get(label) {
                     let _ = window.emit_to(
@@ -563,6 +578,14 @@ fn menu(app: &tauri::App) -> tauri::Result<()> {
         }
     });
     Ok(())
+}
+
+fn document_title(path: Option<&Path>) -> String {
+    path.and_then(|path| path.file_name())
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("Untitled")
+        .to_string()
 }
 
 fn open_window(app: &tauri::AppHandle, path: Option<&Path>) -> tauri::Result<()> {
@@ -580,7 +603,7 @@ fn open_window(app: &tauri::AppHandle, path: Option<&Path>) -> tauri::Result<()>
     };
     tauri::WebviewWindowBuilder::new(app, label, tauri::WebviewUrl::App(address.into()))
         .visible(false)
-        .title("Untitled")
+        .title(document_title(path))
         .inner_size(860.0, 640.0)
         .min_inner_size(560.0, 320.0)
         .build()?;
@@ -589,19 +612,23 @@ fn open_window(app: &tauri::AppHandle, path: Option<&Path>) -> tauri::Result<()>
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .on_page_load(|webview, _payload| {
-            let window = webview.window();
-            if !window.label().starts_with("preview-") {
-                let title = window.title().unwrap_or_else(|_| "Untitled".into());
-                let _ = macos::set_document_header(
-                    window,
-                    title,
-                    None,
-                    false,
-                    include_bytes!("../../brand/markdown-document-icon.png").to_vec(),
-                );
-                let _ = webview.window().show();
+        .on_page_load(|webview, payload| {
+            if payload.event() != tauri::webview::PageLoadEvent::Started {
+                return;
             }
+            let window = webview.window();
+            if window.label().starts_with("preview-") {
+                return;
+            }
+            // Stay hidden. The document webview shows itself only after it sets the centered header.
+            let title = window.title().unwrap_or_else(|_| "Untitled".into());
+            let _ = macos::set_document_header(
+                window,
+                title,
+                None,
+                false,
+                include_bytes!("../../brand/markdown-document-icon.png").to_vec(),
+            );
         })
         .manage(lifecycle::QuitState::default())
         .invoke_handler(tauri::generate_handler![
@@ -632,6 +659,7 @@ fn main() {
             macos::icloud_status,
             macos::open_help,
             macos::detect_data,
+            macos::open_detected_url,
             macos::script_note_document,
             macos::script_forget_document
         ])
@@ -726,12 +754,29 @@ mod tests {
             menu_route("close", Some("document-2"), &labels),
             MenuRoute::Document("document-2")
         );
+        assert_eq!(
+            menu_route("close", Some("preview-main"), &labels),
+            MenuRoute::CloseWindow("preview-main")
+        );
+        assert_eq!(
+            menu_route("close", Some("preview-missing"), &labels),
+            MenuRoute::CloseWindow("preview-missing")
+        );
         assert_eq!(menu_route("bold", None, &labels), MenuRoute::Drop);
         assert_eq!(menu_route("vim", None, &labels), MenuRoute::RestoreVim);
         assert_eq!(
             menu_route("vim", Some("preview-missing"), &labels),
+            MenuRoute::RestoreVim
+        );
+        assert_eq!(
+            menu_route("bold", Some("preview-missing"), &labels),
             MenuRoute::Drop
         );
+    }
+    #[test]
+    fn document_window_title_uses_the_file_name() {
+        assert_eq!(document_title(None), "Untitled");
+        assert_eq!(document_title(Some(Path::new("/tmp/Notes.md"))), "Notes.md");
     }
     #[test]
     fn markdown_association_declares_the_icon_and_classic_extensions() {
@@ -776,6 +821,41 @@ mod tests {
         ] {
             assert!(menu.contains(item), "{item}");
         }
+    }
+    #[test]
+    fn detected_urls_are_handed_to_the_workspace() {
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/src/classic-scripting.m");
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("open-url");
+        let compile = std::process::Command::new("clang")
+            .args([
+                "-fobjc-arc",
+                "-framework",
+                "Cocoa",
+                "-DCLASSIC_OPEN_URL_MAIN",
+                "-x",
+                "objective-c",
+                source,
+                "-o",
+            ])
+            .arg(&binary)
+            .output()
+            .unwrap();
+        assert!(
+            compile.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compile.stderr)
+        );
+        let ran = std::process::Command::new(&binary).output().unwrap();
+        let stdout = String::from_utf8_lossy(&ran.stdout);
+        assert!(
+            ran.status.success(),
+            "{stdout}\n{}",
+            String::from_utf8_lossy(&ran.stderr)
+        );
+        assert!(stdout.contains("https://example.com/notes"), "{stdout}");
+        assert!(stdout.contains("tel:+14155550134"), "{stdout}");
+        assert!(stdout.contains("maps.apple.com"), "{stdout}");
     }
     fn objc_check(define: &str) {
         let source = concat!(env!("CARGO_MANIFEST_DIR"), "/src/classic-scripting.m");

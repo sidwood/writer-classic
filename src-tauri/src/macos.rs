@@ -23,7 +23,11 @@ pub fn replace_file(path: &Path, temporary: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn browse_native_versions(window: tauri::Window, path: String, encoding: usize) -> Result<(), String> {
+pub fn browse_native_versions(
+    window: tauri::Window,
+    path: String,
+    encoding: usize,
+) -> Result<(), String> {
     use tauri::Emitter;
     let _main = objc2::MainThreadMarker::new().ok_or("Versions require the main thread")?;
     extern "C" fn finished(context: *mut std::ffi::c_void) {
@@ -47,7 +51,8 @@ pub fn browse_native_versions(window: tauri::Window, path: String, encoding: usi
     let pointer = window.ns_window().map_err(|e| e.to_string())?;
     let path = std::ffi::CString::new(path).map_err(|e| e.to_string())?;
     let context = Box::into_raw(Box::new(window)).cast();
-    let error = unsafe { classic_browse_versions(pointer, path.as_ptr(), encoding, finished, context) };
+    let error =
+        unsafe { classic_browse_versions(pointer, path.as_ptr(), encoding, finished, context) };
     if error.is_null() {
         Ok(())
     } else {
@@ -287,6 +292,25 @@ pub fn open_help() -> Result<(), String> {
         fn free(pointer: *mut std::ffi::c_void);
     }
     let error = unsafe { classic_open_help() };
+    if error.is_null() {
+        Ok(())
+    } else {
+        let message = unsafe { std::ffi::CStr::from_ptr(error) }
+            .to_string_lossy()
+            .into_owned();
+        unsafe { free(error.cast()) }
+        Err(message)
+    }
+}
+
+#[tauri::command]
+pub fn open_detected_url(url: String) -> Result<(), String> {
+    let url = std::ffi::CString::new(url).map_err(|e| e.to_string())?;
+    unsafe extern "C" {
+        fn classic_open_url(url: *const std::ffi::c_char) -> *mut std::ffi::c_char;
+        fn free(pointer: *mut std::ffi::c_void);
+    }
+    let error = unsafe { classic_open_url(url.as_ptr()) };
     if error.is_null() {
         Ok(())
     } else {

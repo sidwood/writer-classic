@@ -56,3 +56,38 @@ test("dark preview uses the same root palette and responds to toggles", async ({
     )
     .toBe("rgb(240, 240, 240)");
 });
+test("Command-P prints plain text and Option-Command-P prints formatted HTML", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Document text" }).fill("**bold**");
+  await page.evaluate(() => {
+    (window as any).printed = [];
+    window.print = () => {
+      const article = document.querySelector(".print-document");
+      (window as any).printed.push(article?.className ?? "");
+    };
+  });
+  await page.keyboard.press("Meta+p");
+  await page.keyboard.press("Meta+Alt+p");
+  await expect
+    .poll(() => page.evaluate(() => (window as any).printed))
+    .toEqual(["print-document plain", "print-document formatted"]);
+});
+
+test("format bar shows the heading at the caret, including heading text", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  await editor.fill("# Heading text");
+  await editor.click();
+  await expect(page.getByRole("button", { name: "Heading 1" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "Heading 2" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+});

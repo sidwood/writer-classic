@@ -33,6 +33,7 @@ import {
 import { tags } from "@lezer/highlight";
 import { vim, Vim, getCM } from "@replit/codemirror-vim";
 import { sentenceAt } from "./document";
+import { marksAt, type FormatMarks } from "./format-marks";
 import {
   detectText,
   detectionTarget,
@@ -59,6 +60,7 @@ const emit = defineEmits<{
   change: [text: string];
   selection: [text: string];
   mode: [mode: string];
+  marks: [marks: FormatMarks];
   command: [command: string];
   dataAction: [message: string];
 }>();
@@ -82,19 +84,58 @@ function detectionExtension(items: Detection[]) {
     ),
   );
 }
+let detectionEpoch = 0;
+let shownDetections: Detection[] = [];
 function currentDetections(text: string) {
   return detectText(text, props.smartLinks, props.dataDetection).filter(
     (item) => item.end <= text.length,
   );
 }
-function refreshDetections() {
+function reportMarks() {
   if (!view) return;
-  const items = currentDetections(view.state.doc.toString());
+  emit(
+    "marks",
+    marksAt(view.state.doc.toString(), view.state.selection.main.head),
+  );
+}
+async function refreshDetections() {
+  if (!view) return;
+  const epoch = ++detectionEpoch;
+  const text = view.state.doc.toString();
+  const fallback = currentDetections(text);
+  shownDetections = fallback;
+  let items = fallback;
+  if (isTauri()) {
+    try {
+      const native = await invoke<Detection[] | null>("detect_data", {
+        text,
+        links: props.smartLinks,
+        data: props.dataDetection,
+      });
+      if (Array.isArray(native))
+        items = native.filter(
+          (item) => item.start < item.end && item.end <= text.length,
+        );
+    } catch {
+      /* JS detections remain the fallback. */
+    }
+  }
+  if (epoch !== detectionEpoch || !view) return;
+  shownDetections = items;
   view.dispatch({
     effects: detectionConfig.reconfigure(
       items.length ? detectionExtension(items) : [],
     ),
   });
+}
+function openDetected(target: string) {
+  if (!isTauri()) {
+    window.open(target);
+    return;
+  }
+  void invoke("open_detected_url", { url: target }).catch((reason) =>
+    emit("dataAction", String(reason)),
+  );
 }
 function deleteText() {
   view.dispatch(
@@ -210,7 +251,7 @@ onMounted(() => {
         focusConfig.of(props.focus ? sentenceFocus : []),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) emit("change", update.state.doc.toString());
-          if (update.docChanged || update.selectionSet)
+          if (update.docChanged || update.selectionSet) {
             emit(
               "selection",
               update.state.sliceDoc(
@@ -218,6 +259,8 @@ onMounted(() => {
                 update.state.selection.main.to,
               ),
             );
+            reportMarks();
+          }
           queueMicrotask(reportMode);
         }),
         autocompletion({
@@ -250,6 +293,7 @@ onMounted(() => {
         EditorView.domEventHandlers({
           keyup() {
             reportMode();
+            reportMarks();
           },
           mousedown(event, editor) {
             reportMode();
@@ -259,13 +303,13 @@ onMounted(() => {
               y: event.clientY,
             });
             if (pos == null) return false;
-            const hit = currentDetections(editor.state.doc.toString()).find(
+            const hit = shownDetections.find(
               (item) => pos >= item.start && pos < item.end,
             );
             if (!hit) return false;
             event.preventDefault();
             const target = detectionTarget(hit);
-            if (target) window.open(target);
+            if (target) openDetected(target);
             else emit("dataAction", `Detected date: ${hit.value}`);
             return true;
           },
@@ -295,6 +339,7 @@ onMounted(() => {
   view.focus();
   refreshDetections();
   reportMode();
+  reportMarks();
 });
 watch(
   () => props.text,
@@ -311,6 +356,7 @@ watch(
   (enabled) => {
     view.dispatch({ effects: vimConfig.reconfigure(enabled ? vim() : []) });
     reportMode();
+    reportMarks();
     view.focus();
   },
 );

@@ -19,6 +19,11 @@ static NSMutableArray<NSString *> *classic_order;
 - (void)replaceTextFromEditor:(NSString *)text;
 @end
 
+@interface NSApplication (ClassicScripting)
+- (NSArray *)classicOrderedDocuments;
+- (id)classicFrontDocument;
+@end
+
 @implementation ClassicScriptDocument
 - (void)setText:(NSString *)text {
     _text = [text copy] ?: @"";
@@ -27,6 +32,16 @@ static NSMutableArray<NSString *> *classic_order;
 }
 - (void)replaceTextFromEditor:(NSString *)text {
     _text = [text copy] ?: @"";
+}
+- (NSScriptObjectSpecifier *)objectSpecifier {
+    NSArray *documents = [NSApp classicOrderedDocuments];
+    NSUInteger index = [documents indexOfObjectIdenticalTo:self];
+    if (index == NSNotFound) return nil;
+    NSScriptClassDescription *container = [NSScriptClassDescription classDescriptionForClass:[NSApplication class]];
+    return [[NSIndexSpecifier alloc] initWithContainerClassDescription:container
+                                                    containerSpecifier:nil
+                                                                   key:@"classicOrderedDocuments"
+                                                                 index:index];
 }
 @end
 
@@ -226,11 +241,24 @@ static void ClassicReplyError(NSAppleEventDescriptor *reply, OSStatus code) {
     [reply setParamDescriptor:[NSAppleEventDescriptor descriptorWithInt32:code] forKeyword:keyErrorNumber];
 }
 
+static NSAppleEventDescriptor *ClassicDocumentSpecifier(ClassicScriptDocument *document) {
+    if (!document) return nil;
+    NSArray *documents = ClassicDocuments();
+    NSUInteger index = [documents indexOfObjectIdenticalTo:document];
+    if (index == NSNotFound) return nil;
+    NSAppleEventDescriptor *record = [NSAppleEventDescriptor recordDescriptor];
+    [record setDescriptor:[NSAppleEventDescriptor descriptorWithTypeCode:'docu'] forKeyword:keyAEDesiredClass];
+    [record setDescriptor:[NSAppleEventDescriptor descriptorWithEnumCode:formAbsolutePosition] forKeyword:keyAEKeyForm];
+    [record setDescriptor:[NSAppleEventDescriptor descriptorWithInt32:(SInt32)index + 1] forKeyword:keyAEKeyData];
+    [record setDescriptor:[NSAppleEventDescriptor nullDescriptor] forKeyword:keyAEContainer];
+    return [record coerceToDescriptorType:typeObjectSpecifier] ?: record;
+}
+
 static NSAppleEventDescriptor *ClassicReplyValue(id value) {
     if ([value isKindOfClass:[NSString class]])
         return [NSAppleEventDescriptor descriptorWithString:value];
     if ([value isKindOfClass:[ClassicScriptDocument class]])
-        return [NSAppleEventDescriptor descriptorWithString:((ClassicScriptDocument *)value).name ?: @""];
+        return ClassicDocumentSpecifier(value);
     if ([value isKindOfClass:[NSArray class]]) {
         NSAppleEventDescriptor *list = [NSAppleEventDescriptor listDescriptor];
         for (id item in value) {
@@ -383,6 +411,19 @@ const char *classic_open_help(void) {
     }
 }
 
+const char *classic_open_url(const char *utf8) {
+    @autoreleasepool {
+        NSString *value = utf8 ? [NSString stringWithUTF8String:utf8] : @"";
+        NSURL *target = [NSURL URLWithString:value];
+        if (!target.scheme.length) return strdup("Invalid URL");
+        if (getenv("WRITER_CLASSIC_OPEN_URL_DRY_RUN")) {
+            printf("%s\n", target.absoluteString.UTF8String ?: "");
+            return NULL;
+        }
+        return [[NSWorkspace sharedWorkspace] openURL:target] ? NULL : strdup("Could not open the detected item");
+    }
+}
+
 char *classic_detect_data(const char *utf8, int links, int data) {
     @autoreleasepool {
         NSString *text = utf8 ? [NSString stringWithUTF8String:utf8] : @"";
@@ -447,6 +488,24 @@ const char *classic_arrange_in_front_error(void) {
     return failure;
 }
 
+#ifdef CLASSIC_OPEN_URL_MAIN
+int main(void) {
+    setenv("WRITER_CLASSIC_OPEN_URL_DRY_RUN", "1", 1);
+    const char *error = classic_open_url("https://example.com/notes");
+    if (error) { fprintf(stderr, "%s\n", error); return 1; }
+    error = classic_open_url("tel:+14155550134");
+    if (error) { fprintf(stderr, "%s\n", error); return 2; }
+    error = classic_open_url("https://maps.apple.com/?q=1%20Main");
+    if (error) { fprintf(stderr, "%s\n", error); return 3; }
+    error = classic_open_url("");
+    if (!error) return 4;
+    free((void *)error);
+    error = classic_open_url("not a url");
+    if (!error) return 5;
+    free((void *)error);
+    return 0;
+}
+#endif
 #ifdef CLASSIC_ARRANGE_MAIN
 int main(void) {
     const char *error = classic_arrange_in_front_error();
@@ -560,6 +619,25 @@ int main(void) {
         ClassicSet(events, ClassicProperty('pnam', ClassicDocumentIndex(1)), @"hacked");
         NSString *nameAfter = [ClassicGet(events, ClassicProperty('pnam', ClassicDocumentIndex(1))) paramDescriptorForKeyword:keyDirectObject].stringValue;
         NSString *textAfterName = [ClassicGet(events, ClassicProperty('ctxt', ClassicDocumentIndex(1))) paramDescriptorForKeyword:keyDirectObject].stringValue;
+        NSAppleEventDescriptor *frontDocument = [ClassicGet(events, ClassicProperty('frnt', nil)) paramDescriptorForKeyword:keyDirectObject];
+        NSAppleEventDescriptor *everyDocument = [ClassicGet(events, ClassicSpec('docu', formAbsolutePosition, [NSAppleEventDescriptor descriptorWithEnumCode:kAEAll], nil)) paramDescriptorForKeyword:keyDirectObject];
+        BOOL listIsSpecifiers = everyDocument.descriptorType == typeAEList && everyDocument.numberOfItems > 0;
+        for (NSInteger index = 1; listIsSpecifiers && index <= everyDocument.numberOfItems; index++) {
+            if ([everyDocument descriptorAtIndex:index].descriptorType != typeObjectSpecifier) listIsSpecifiers = NO;
+        }
+        NSString *resolveError = nil;
+        id resolved = ClassicResolveObject(frontDocument, nil, &resolveError);
+        NSString *nestedName = [ClassicGet(events, ClassicProperty('pnam', ClassicProperty('frnt', nil))) paramDescriptorForKeyword:keyDirectObject].stringValue;
+        ClassicSet(events, ClassicProperty('ctxt', ClassicProperty('frnt', nil)), @"front-only");
+        NSString *frontAfterNested = [ClassicGet(events, ClassicProperty('ctxt', ClassicDocumentIndex(1))) paramDescriptorForKeyword:keyDirectObject].stringValue;
+        NSString *otherAfterNested = [ClassicGet(events, ClassicProperty('ctxt', ClassicDocumentIndex(2))) paramDescriptorForKeyword:keyDirectObject].stringValue;
+        BOOL specifiers = frontDocument.descriptorType == typeObjectSpecifier
+            && ClassicCode([frontDocument descriptorForKeyword:keyAEDesiredClass]) == 'docu'
+            && listIsSpecifiers
+            && resolved == [app classicFrontDocument]
+            && [nestedName isEqualToString:@"Notes.md"]
+            && [frontAfterNested isEqualToString:@"front-only"]
+            && [otherAfterNested isEqualToString:@"only-other"];
         classic_forget_document("empty");
         NSAppleEventDescriptor *forgotten = ClassicGet(events, ClassicProperty('ctxt', ClassicDocumentName(@"Empty.md")));
         NSAppleEventDescriptor *setEvent = [NSAppleEventDescriptor appleEventWithEventClass:'core' eventID:'setd' targetDescriptor:[NSAppleEventDescriptor nullDescriptor] returnID:kAutoGenerateReturnID transactionID:kAnyTransactionID];
@@ -580,15 +658,17 @@ int main(void) {
             && [textAfterName isEqualToString:@"alpha beta"]
             && [forgotten paramDescriptorForKeyword:keyErrorNumber].int32Value == errAENoSuchObject
             && ![app.classicOrderedDocuments containsObject:classic_documents[@"ghost"]];
-        BOOL ok = targeted && [got isEqualToString:@"alpha beta"] && [after isEqualToString:@"gamma δ"] && strcmp(set_text, "gamma δ") == 0 && strcmp(opened_path, "/tmp/writer-classic-script-open.md") == 0;
-        printf("got=%s\nafter=%s\nset=%s\nopened=%s\nsecond=%s\nname=%s\npath=%s\nempty=%s\nmain=%s\nother=%s\nforgotten=%d\n",
+        BOOL ok = specifiers && targeted && [got isEqualToString:@"alpha beta"] && [after isEqualToString:@"gamma δ"] && strcmp(set_text, "gamma δ") == 0 && strcmp(opened_path, "/tmp/writer-classic-script-open.md") == 0;
+        printf("got=%s\nafter=%s\nset=%s\nopened=%s\nsecond=%s\nname=%s\npath=%s\nempty=%s\nmain=%s\nother=%s\nforgotten=%d\nfrontType=%u\nlistType=%u\nnested=%s\nfrontAfter=%s\n",
             got.UTF8String ?: "", after.UTF8String ?: "", set_text, opened_path,
             [second paramDescriptorForKeyword:keyDirectObject].stringValue.UTF8String ?: "",
             [name paramDescriptorForKeyword:keyDirectObject].stringValue.UTF8String ?: "",
             [path paramDescriptorForKeyword:keyDirectObject].stringValue.UTF8String ?: "",
             emptyText.UTF8String ?: "(nil)",
             mainText.UTF8String ?: "", otherText.UTF8String ?: "",
-            [forgotten paramDescriptorForKeyword:keyErrorNumber].int32Value);
+            [forgotten paramDescriptorForKeyword:keyErrorNumber].int32Value,
+            frontDocument.descriptorType, everyDocument.descriptorType,
+            nestedName.UTF8String ?: "", frontAfterNested.UTF8String ?: "");
         return ok ? 0 : 1;
     }
 }

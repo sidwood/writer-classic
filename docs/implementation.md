@@ -52,6 +52,16 @@ Observed Classic requirements: plain-text UTF-8 Markdown documents; multiple doc
 | Fresh windows were unscriptable and closed ones stayed listed | Note on mount and after apply; forget on close; skip nil windows | Scripting selftest; registry e2e |
 | New, Duplicate, and recovered windows appeared before the title | Those windows start hidden and show after the document header | `review-routing.spec.ts` hidden-window test |
 | Browser tab title waited for the first edit | `document.title` is set from `doc.title` on mount | `title.spec.ts` initial title |
+| Revert and Versions replaced typing during the disk read | Replacement is dropped when the edit epoch changes after the read starts | `review-routing.spec.ts` revert and versions-finished |
+| Save As kept the encoding that could not store the text | Save As writes UTF-8 when the encoding error offers that recovery | `review-routing.spec.ts` UTF-8 recovery |
+| Command-W on Preview closed the document | Focused Preview close closes that window only | `menu_route` CloseWindow |
+| Vim from an orphan Preview left the checkbox flipped | The checkbox is restored to the editor preference | `menu_route` RestoreVim |
+| AppleScript returned document names | Front document and document lists return object specifiers; get/set honor the requested document and property | AppleScript selftest |
+| Quick Look dropped indented code, underscore emphasis, quotes, and breaks | Preview emits code, emphasis, blockquote, and hr for those constructs | Quick Look semantics check |
+| Command-P printed formatted HTML | Command-P prints plain text; Option-Command-P prints formatted HTML | `review-ui.spec.ts` print |
+| Format bar ignored caret formatting | Heading, emphasis, strong, strike, and list marks follow the caret line | `review-ui.spec.ts`, `format-marks` unit test |
+| Smart Links and Data Detection did not open in the native app | Detected links, phones, and addresses open through NSWorkspace | `review-routing.spec.ts`; URL dry-run |
+| Web-created document windows could appear before the centered header | They stay hidden, titled with the file name, and show only after the header is set | `review-routing.spec.ts` hidden-window test |
 
 Named-review extras covered by the same checks: the Vim indicator stays effectively opaque after edits; the native checkbox follows a persisted-off preference and is restored when no editor accepts the toggle; `document.title` is the document title only, with the dirty dot on the close control; `UTTypeIconFile` is `markdown-document-icon`; menu, quit, and preview events use `emit_to` and the current webview window; visual `c` is not armed while keys are pending, disarms on return to normal, and `s`/`C` share the change undo group.
 
@@ -69,15 +79,16 @@ Blocked or remaining exact-parity obligations:
 
 - Nitti: proprietary. It is loaded read-only from an installed Classic at runtime and is not redistributed. Without that install, the face falls back to Menlo. No licensing authority was available to bundle it.
 - iCloud signing: `security find-identity -v -p codesigning` found 0 valid identities. The ubiquity probe returns no container. `src-tauri/Entitlements.icloud.plist` and `src-tauri/tauri.icloud.conf.json` are opt-in so an unsigned default build is not killed for an ungrantable entitlement. The browse/open/save/move workflow is implemented; live container verification is blocked until Sid provides a signing identity and container. This commit does not claim iCloud live signing.
-- Quick Look, Help, AppleScript, and the previously missing Classic menu items are implemented in this checkout. They do not establish exact Classic parity. `qlmanage -g` on this Mac (macOS 26) reports "Can't get generator" for this generator and for Classic's own x86_64 generator; the installed generator is loaded in-process and its preview HTML is tested. Live `osascript` from this runner is denied by TCC (`-1743`). The scripting handlers and sdef are tested in-process.
+- Quick Look system registration: the preview extension is a sandboxed arm64 appex with `LC_MAIN` and `_NSExtensionMain`. `pluginkit -a -v` exits 0 but `pluginkit -m` reports `(no matches)`. `security find-identity -v -p codesigning` found 0 valid identities, and the signature is ad-hoc. Registration still requires a signing identity. `qlmanage -g` reports `Can't get generator`. Exact command output is in `docs/evidence/quicklook-registration.txt`. This commit does not claim system Quick Look works on this Mac. In-process preview HTML is tested.
+- Help and AppleScript are implemented in this checkout. They do not establish exact Classic parity. Live `osascript` from this runner is denied by TCC (`-1743`). The scripting handlers and sdef are tested in-process, including document object specifiers.
 - The interactive NSDocument version timeline was not driven in this session, so title-bar timeline visuals are unverified. The File command calls `browseDocumentVersions:`, and Last Saved / Previous Save / Last Opened have tested semantics. Accessibility inspection of a launched bundle was not authorized (`AX` returned no children; System Events Apple events were denied).
-- Find/replace, statistics, format-bar active states, line width, typography, animation timing, and the DOCX/RTF corpus are still not proven equivalent to Classic. Duplicate `fileAssociations` in `tauri.conf.json` is inert while `Info.plist` is the association source; it was left in place.
+- Find/replace, statistics, line width, typography, animation timing, and the DOCX/RTF corpus are still not proven equivalent to Classic. The format bar now reflects caret marks, but Classic's exact active-state artwork is not claimed. Duplicate `fileAssociations` in `tauri.conf.json` is inert while `Info.plist` is the association source; it was left in place.
 
 ## Validation evidence
 
-- `npm test`: 7 unit tests passed, including mixed-delimiter fences and smart copy/paste plus data detection.
-- `npm run test:e2e`: 39 Chromium scenarios passed, including delete, smart paste, detections, and the Help menu.
-- `cargo test --manifest-path src-tauri/Cargo.toml`: 19 tests passed. Native title frames stay centered. The Quick Look generator loads and previews markdown and text. The help book indexes. AppleScript get, set, and open round-trip in-process. Bring All to Front keeps both windows visible in order.
+- `npm test`: 8 unit tests passed, including caret format marks, mixed-delimiter fences, and smart copy/paste plus data detection.
+- `npm run test:e2e`: 50 Chromium scenarios passed, including revert/versions typing, UTF-8 Save As, print modes, format-bar marks, and native detection clicks.
+- `cargo test --manifest-path src-tauri/Cargo.toml`: 23 tests passed. Native title frames stay centered. The Quick Look generator loads and previews markdown and text. The help book indexes. AppleScript get, set, and open round-trip in-process and return document specifiers. Detected URLs are handed to NSWorkspace in a dry run. Bring All to Front keeps both windows visible in order.
 - `npm run build` and `npm run tauri -- build --target aarch64-apple-darwin`: passed. Vite reports a large bundle warning.
 - `python3 scripts/verify-bundle.py`: passed arm64 executable, Classic Markdown extensions, UTI icon, handed-off icon bytes, Quick Look generator, help book, and AppleScript definition.
 

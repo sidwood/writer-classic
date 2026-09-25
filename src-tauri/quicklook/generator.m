@@ -46,10 +46,14 @@ static NSString *InlineMarkdown(NSString *escaped) {
         index = close + ticks;
     }
     NSRegularExpression *strong = [NSRegularExpression regularExpressionWithPattern:@"\\*\\*([^*]+)\\*\\*" options:0 error:nil];
+    NSRegularExpression *underStrong = [NSRegularExpression regularExpressionWithPattern:@"(?<![A-Za-z0-9])__([^_]+)__(?![A-Za-z0-9])" options:0 error:nil];
     NSRegularExpression *emphasis = [NSRegularExpression regularExpressionWithPattern:@"(?<!\\*)\\*([^*]+)\\*(?!\\*)" options:0 error:nil];
+    NSRegularExpression *underEmphasis = [NSRegularExpression regularExpressionWithPattern:@"(?<![A-Za-z0-9])_([^_]+)_(?![A-Za-z0-9])" options:0 error:nil];
     NSRegularExpression *link = [NSRegularExpression regularExpressionWithPattern:@"\\[([^\\]]+)\\]\\((https?://[^\\s)]+)\\)" options:0 error:nil];
     [strong replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<strong>$1</strong>"];
+    [underStrong replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<strong>$1</strong>"];
     [emphasis replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<em>$1</em>"];
+    [underEmphasis replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<em>$1</em>"];
     [link replaceMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@"<a href=\"$2\">$1</a>"];
     for (NSUInteger code = 0; code < codes.count; code++) {
         NSString *token = [NSString stringWithFormat:@"\uE000%lu\uE001", (unsigned long)code];
@@ -73,6 +77,38 @@ static BOOL FenceLine(NSString *line, unichar *delimiter, NSUInteger *length, NS
     *length = index - start;
     *info = [rest stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
     *closer = (*info).length == 0;
+    return YES;
+}
+static BOOL IndentedCodeLine(NSString *line, NSString **content) {
+    if (line.length < 4) return NO;
+    for (NSUInteger index = 0; index < 4; index++)
+        if ([line characterAtIndex:index] != ' ') return NO;
+    if (content) *content = [line substringFromIndex:4];
+    return YES;
+}
+
+static BOOL ThematicBreak(NSString *line) {
+    NSUInteger index = 0;
+    while (index < line.length && index < 3 && [line characterAtIndex:index] == ' ') index++;
+    if (index >= line.length) return NO;
+    unichar marker = [line characterAtIndex:index];
+    if (marker != '-' && marker != '_' && marker != '*') return NO;
+    NSUInteger count = 0;
+    for (; index < line.length; index++) {
+        unichar character = [line characterAtIndex:index];
+        if (character == marker) count++;
+        else if (character != ' ' && character != '\t') return NO;
+    }
+    return count >= 3;
+}
+
+static BOOL QuoteLine(NSString *line, NSString **content) {
+    NSUInteger index = 0;
+    while (index < line.length && index < 3 && [line characterAtIndex:index] == ' ') index++;
+    if (index >= line.length || [line characterAtIndex:index] != '>') return NO;
+    index++;
+    if (index < line.length && [line characterAtIndex:index] == ' ') index++;
+    if (content) *content = [line substringFromIndex:index];
     return YES;
 }
 
@@ -160,6 +196,8 @@ NSString *WriterPreviewHTML(NSString *text, NSString *uti, NSString *name) {
         [body appendFormat:@"<pre>%@</pre>", EscapeHTML(text ?: @"")];
     } else {
         BOOL inCode = NO;
+        BOOL inIndent = NO;
+        BOOL inQuote = NO;
         unichar fenceChar = 0;
         NSUInteger fenceLength = 0;
         NSInteger listDepth = 0;
@@ -181,6 +219,8 @@ NSString *WriterPreviewHTML(NSString *text, NSString *uti, NSString *name) {
                 continue;
             }
             if (fence) {
+                if (inIndent) { inIndent = NO; [body appendString:@"</code></pre>"]; }
+                if (inQuote) { inQuote = NO; [body appendString:@"</blockquote>"]; }
                 CloseLists(body, &listDepth, listKind);
                 inCode = YES;
                 fenceChar = delimiter;
@@ -191,15 +231,52 @@ NSString *WriterPreviewHTML(NSString *text, NSString *uti, NSString *name) {
                 else [body appendString:@"<pre><code>"];
                 continue;
             }
+            NSString *indented = nil;
+            if (inIndent) {
+                if (IndentedCodeLine(line, &indented)) {
+                    [body appendFormat:@"%@\n", EscapeHTML(indented)];
+                    continue;
+                }
+                inIndent = NO;
+                [body appendString:@"</code></pre>"];
+            }
+            if (IndentedCodeLine(line, &indented)) {
+                if (inQuote) { inQuote = NO; [body appendString:@"</blockquote>"]; }
+                CloseLists(body, &listDepth, listKind);
+                inIndent = YES;
+                [body appendFormat:@"<pre><code>%@\n", EscapeHTML(indented)];
+                continue;
+            }
+            if (ThematicBreak(line)) {
+                if (inQuote) { inQuote = NO; [body appendString:@"</blockquote>"]; }
+                CloseLists(body, &listDepth, listKind);
+                [body appendString:@"<hr>"];
+                continue;
+            }
             if ([line hasPrefix:@"#"]) {
                 NSUInteger level = 0;
                 while (level < line.length && level < 6 && [line characterAtIndex:level] == '#') level++;
                 if (level && (line.length == level || [line characterAtIndex:level] == ' ')) {
+                    if (inQuote) { inQuote = NO; [body appendString:@"</blockquote>"]; }
                     CloseLists(body, &listDepth, listKind);
                     NSString *content = InlineMarkdown(EscapeHTML([[line substringFromIndex:level] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]));
                     [body appendFormat:@"<h%lu>%@</h%lu>", (unsigned long)level, content, (unsigned long)level];
                     continue;
                 }
+            }
+            NSString *quoted = nil;
+            if (QuoteLine(line, &quoted)) {
+                if (!inQuote) {
+                    CloseLists(body, &listDepth, listKind);
+                    inQuote = YES;
+                    [body appendString:@"<blockquote>"];
+                }
+                [body appendFormat:@"<p>%@</p>", InlineMarkdown(EscapeHTML(quoted))];
+                continue;
+            }
+            if (inQuote) {
+                inQuote = NO;
+                [body appendString:@"</blockquote>"];
             }
             NSInteger depth = 0;
             unichar kind = 0;
@@ -216,6 +293,8 @@ NSString *WriterPreviewHTML(NSString *text, NSString *uti, NSString *name) {
             [body appendFormat:@"<p>%@</p>", InlineMarkdown(EscapeHTML(line))];
         }
         CloseLists(body, &listDepth, listKind);
+        if (inIndent) [body appendString:@"</code></pre>"];
+        if (inQuote) [body appendString:@"</blockquote>"];
         if (inCode) [body appendString:@"</code></pre>"];
     }
     return [NSString stringWithFormat:@"<!doctype html><html><head><meta charset=\"utf-8\"><title>%@</title><style>body{margin:0;padding:48px 64px;background:#f7f6f3;color:#1c1c1c;font:18px/1.55 Menlo,monospace}h1,h2,h3,h4,h5,h6{font-family:Georgia,serif;line-height:1.2}pre{white-space:pre-wrap}a{color:#1c1c1c}</style></head><body><article>%@</article></body></html>", title, body];
@@ -231,6 +310,7 @@ NSString *WriterReadText(NSURL *url) {
     return text ?: @"This file could not be read as text.";
 }
 
+#ifndef CLASSIC_PREVIEW_EXTENSION
 OSStatus GeneratePreviewForURL(void *thisInterface, QLPreviewRequestRef preview, CFURLRef url, CFStringRef contentTypeUTI, CFDictionaryRef options) {
     (void)thisInterface; (void)options;
     @autoreleasepool {
@@ -361,6 +441,7 @@ __attribute__((visibility("default"))) void *QuickLookGeneratorPluginFactory(CFA
     return plugin;
 }
 
+#endif
 const char *writer_preview_html_utf8(const char *text, const char *uti, const char *name) {
     @autoreleasepool {
         NSString *html = WriterPreviewHTML(
