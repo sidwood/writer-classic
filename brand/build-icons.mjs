@@ -28,6 +28,9 @@ const work = mkdtempSync(join(tmpdir(), "writer-classic-icons-"));
 
 const INK = "#2c2c2f";
 const ACCENT = "#e8553a";
+// The cursor gradient in the canonical app icons, top to bottom.
+const ACCENT_TOP = "#58a4f5";
+const ACCENT_BOTTOM = "#3a86e8";
 const TILE_TOP = "#ebe8e2";
 const TILE_BOTTOM = "#dbd7cf";
 const TILE_FLAT = "#e3e0d9";
@@ -42,7 +45,7 @@ const n = (value) => +value.toFixed(2);
 function caret(x, base, weight, length) {
   const height = weight * 0.72;
   const y = base + weight / 2 - height;
-  return `<rect x="${n(x)}" y="${n(y)}" width="${n(length)}" height="${n(height)}" rx="${n(height * 0.24)}" fill="${ACCENT}"/>`;
+  return `<rect x="${n(x)}" y="${n(y)}" width="${n(length)}" height="${n(height)}" rx="${n(height * 0.24)}" fill="url(#caret)"/>`;
 }
 
 // The word "classic" is drawn from strokes, not set in a font. Letter units:
@@ -293,6 +296,7 @@ function documentIcon(weight, scale) {
   <defs>
     <linearGradient id="sheet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f1efea"/></linearGradient>
     <linearGradient id="flap" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#e4e0d9"/><stop offset="1" stop-color="#f8f7f4"/></linearGradient>
+    <linearGradient id="caret" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${ACCENT_TOP}"/><stop offset="1" stop-color="${ACCENT_BOTTOM}"/></linearGradient>
     <filter id="blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="8"/></filter>
     <filter id="flapBlur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="10"/></filter>
     <clipPath id="page"><path d="${page}"/></clipPath>
