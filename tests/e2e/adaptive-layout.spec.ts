@@ -111,3 +111,35 @@ for (const [state, fontSize] of [
     );
   });
 }
+
+test("the Typeface control writes the workflow state and changes Classic's size step", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 735, height: 640 });
+  await page.goto("/");
+  const editor = page.getByRole("textbox", { name: "Document text" });
+  const typeface = page.getByRole("combobox", { name: "Typeface" });
+  await expect(typeface).toHaveValue("1");
+  await expect(editor).toHaveCSS("font-size", "16px");
+  for (const [state, fontSize] of [
+    ["0", "17px"],
+    ["2", "14px"],
+    ["3", "14px"],
+    ["1", "16px"],
+  ] as const) {
+    await typeface.selectOption(state);
+    await expect(editor).toHaveCSS("font-size", fontSize);
+    await expect(page.locator(".writer-editor")).toHaveAttribute(
+      "data-workflow",
+      state,
+    );
+    expect(
+      await page.evaluate(() =>
+        localStorage.getItem("writer-classic.workflow"),
+      ),
+    ).toBe(state);
+  }
+  await typeface.selectOption("2");
+  await page.reload();
+  await expect(editor).toHaveCSS("font-size", "14px");
+});

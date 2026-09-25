@@ -116,3 +116,31 @@ export function classicLayout(
     vertical: Math.floor(type.lineHeight) - 1,
   };
 }
+
+/**
+ * Top padding the page needs so its first line starts Classic's inset,
+ * floor(lineHeight) − 1, below the bottom edge of the title bar.
+ *
+ * `titlebar` is the title bar's height and `pageOrigin` is how far below the
+ * window frame's top edge the page starts. The document window has a full-size
+ * content view, and WebKit gives the web view a top content inset equal to the
+ * title bar, so the page normally starts at the title bar's bottom edge and
+ * needs only the inset. Any part of the title bar that covers the page is added.
+ * In CSS that covered part is env(safe-area-inset-top).
+ */
+export function topPadding(
+  vertical: number,
+  titlebar: number,
+  pageOrigin: number,
+) {
+  return Math.max(0, titlebar - pageOrigin) + vertical;
+}
+
+/** Distance from the window frame's top edge to the first line box. */
+export function textTopBelowFrame(
+  vertical: number,
+  titlebar: number,
+  pageOrigin: number,
+) {
+  return pageOrigin + topPadding(vertical, titlebar, pageOrigin);
+}

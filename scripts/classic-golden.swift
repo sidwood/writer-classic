@@ -136,7 +136,8 @@ func measure(_ url: URL, scale: Double, skipTop: Double) -> Metrics? {
   var columns = [[Int]](repeating: [], count: height)
   for y in first..<height {
     for x in 0..<width {
-      guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+      // Transparent pixels are the window's rounded corners, not ink.
+      guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB), color.alphaComponent > 0.5 else { continue }
       let r = color.redComponent, g = color.greenComponent, b = color.blueComponent
       let luminance = 0.299 * r + 0.587 * g + 0.114 * b
       if luminance < 0.55 && max(r, g, b) - min(r, g, b) < 0.12 {
@@ -167,18 +168,44 @@ func measure(_ url: URL, scale: Double, skipTop: Double) -> Metrics? {
 
 func number(_ object: Any?) -> Double { (object as? NSNumber)?.doubleValue ?? 0 }
 
+/// Near-grey ink pixels inside the title-bar band, between the traffic lights and
+/// the centred title. Editor text drawn under the title bar lands here.
+func titleBandInk(_ url: URL, scale: Double, bar: Double) -> Int {
+  guard let rep = NSBitmapImageRep(data: (try? Data(contentsOf: url)) ?? Data()) else { return -1 }
+  let rows = min(rep.pixelsHigh, Int((bar * scale).rounded()))
+  let from = Int((80 * scale).rounded())
+  let to = rep.pixelsWide / 2 - Int((60 * scale).rounded())
+  var count = 0
+  for y in 0..<rows {
+    for x in from..<max(from, to) {
+      guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB), color.alphaComponent > 0.5 else { continue }
+      let r = color.redComponent, g = color.greenComponent, b = color.blueComponent
+      if 0.299 * r + 0.587 * g + 0.114 * b < 0.55 && max(r, g, b) - min(r, g, b) < 0.12 { count += 1 }
+    }
+  }
+  return count
+}
+
 func compare() -> Int32 {
   let clone = (try? JSONSerialization.jsonObject(with: Data(contentsOf: dir.appendingPathComponent("native-selftest.json")))) as? [String: Any]
   let cloneGolden = clone?["golden"] as? [String: Any] ?? [:]
   let classic = (try? JSONSerialization.jsonObject(with: Data(contentsOf: dir.appendingPathComponent("golden-classic.json")))) as? [String: Any] ?? [:]
   var result: [String: Any] = ["clonePage": cloneGolden["page"] ?? NSNull()]
-  // Both images are measured from one origin: the bottom edge of the title bar.
-  // The Classic capture starts at the frame's top edge, so its title bar is skipped.
-  // The clone snapshot starts at the page's origin, pageOriginBelowFrame points
-  // below the frame's top edge, so only the part of the title bar above the page
-  // (none, when the page starts exactly at the title bar) is skipped.
+  func fail(_ key: String, _ message: String) -> Int32 {
+    result[key] = message
+    result["compared"] = false
+    result["passed"] = false
+    write(result, "golden-result.json")
+    print(message)
+    return 1
+  }
+  // Both images are captures of the whole window from the frame's top edge, and
+  // both are measured from one origin: the bottom edge of the title bar.
+  guard cloneGolden["imageOriginBelowFrame"] != nil, cloneGolden["titlebarHeight"] != nil else {
+    return fail("clone", "the clone capture does not record its title bar or framing")
+  }
   let cloneTitlebar = number(cloneGolden["titlebarHeight"])
-  let cloneSkip = cloneTitlebar - number(cloneGolden["pageOriginBelowFrame"])
+  let cloneSkip = cloneTitlebar - number(cloneGolden["imageOriginBelowFrame"])
   let classicSkip = number(classic["titlebarHeight"]) - number(classic["imageOriginBelowFrame"])
   result["origin"] = [
     "definition": "bottom edge of the title bar",
@@ -187,31 +214,32 @@ func compare() -> Int32 {
     "classicTitlebar": classic["titlebarHeight"] ?? NSNull(),
     "classicSkipTop": classic["titlebarHeight"] == nil ? NSNull() : classicSkip,
   ] as [String: Any]
-  guard cloneGolden["pageOriginBelowFrame"] != nil, cloneSkip >= 0 else {
-    result["clone"] = "clone page origin is unknown or below the title bar's bottom edge"
-    result["compared"] = false
-    result["passed"] = false
-    write(result, "golden-result.json")
-    return 1
-  }
   if classic["titlebarHeight"] != nil, abs(cloneTitlebar - number(classic["titlebarHeight"])) > 0.5 {
     result["originMismatch"] = "clone and Classic title bars differ in height"
   }
-  let cloneMetrics = measure(dir.appendingPathComponent("golden-clone.png"), scale: number(cloneGolden["backingScale"]), skipTop: cloneSkip)
-  result["clone"] = cloneMetrics?.json ?? "no clone snapshot or fewer than four text lines"
+  let scale = number(cloneGolden["backingScale"])
+  let cloneURL = dir.appendingPathComponent("golden-clone.png")
+  // Editor text may not sit under the title bar.
+  let band = titleBandInk(cloneURL, scale: scale, bar: cloneTitlebar)
+  result["cloneTitleBandInk"] = band
+  if band != 0 {
+    return fail("cloneTitleBand", band < 0 ? "no clone capture" : "text ink inside the title-bar band (\(band) pixels)")
+  }
+  let cloneMetrics = measure(cloneURL, scale: scale, skipTop: cloneSkip)
+  result["clone"] = cloneMetrics?.json ?? "no clone capture or fewer than four text lines"
   guard let cloneMetrics else { write(result, "golden-result.json"); return 1 }
-  // The first ink must fall inside the first DOM line box, or the snapshot's
-  // origin is not the one assumed above.
+  // The page's first line box, moved from page coordinates to the title bar's
+  // bottom edge. The first ink must fall inside it, and the line box must start
+  // Classic's inset, floor(lineHeight) − 1, below the title bar.
   let page = cloneGolden["page"] as? [String: Any] ?? [:]
-  let lineTop = number(page["textTop"]) - cloneSkip
+  let lineTop = number(page["textTop"]) + number(cloneGolden["pageOriginBelowFrame"]) - cloneTitlebar
   let lineHeight = Double((page["lineHeight"] as? String)?.replacingOccurrences(of: "px", with: "") ?? "") ?? 0
+  result["cloneLineTopBelowTitlebar"] = lineTop
+  if lineTop < floor(lineHeight) - 1 - 0.5 {
+    return fail("cloneTopPadding", "top padding \(lineTop) below the title bar is less than Classic's \(floor(lineHeight) - 1)")
+  }
   if !(cloneMetrics.firstInk >= lineTop && cloneMetrics.firstInk <= lineTop + lineHeight) {
-    result["compared"] = false
-    result["passed"] = false
-    result["cloneOrigin"] = "first ink \(cloneMetrics.firstInk) is outside the first line box \(lineTop)–\(lineTop + lineHeight)"
-    write(result, "golden-result.json")
-    print("Clone snapshot origin does not match its page: \(result["cloneOrigin"]!)")
-    return 1
+    return fail("cloneOrigin", "first ink \(cloneMetrics.firstInk) is outside the first line box \(lineTop)–\(lineTop + lineHeight)")
   }
   result["cloneOrigin"] = "first ink \(cloneMetrics.firstInk) lies in the first line box \(lineTop)–\(lineTop + lineHeight)"
   guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("golden-classic.png").path),
@@ -240,10 +268,31 @@ func compare() -> Int32 {
   return failures.isEmpty ? 0 : 1
 }
 
-/// Checks the comparator against a simulated Classic window capture made from the
-/// clone snapshot: a title bar of chrome above the same page. Placed at the true
-/// origin it has to pass; moved 6pt down it has to fail on top padding. Exits 0
-/// only when both happen.
+/// The clone window capture with everything below the title bar moved `shift`
+/// points down (positive) or up (negative). Moving it up puts text under the bar.
+func shifted(_ image: CGImage, scale: Double, bar: Double, shift: Double) -> CGImage {
+  let width = image.width, height = image.height
+  let barPixels = Int((bar * scale).rounded())
+  let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+  context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+  // Paper under the title bar, sampled from the capture's own page.
+  let paper = NSBitmapImageRep(cgImage: image).colorAt(x: width / 2, y: barPixels + 4)?.cgColor ?? CGColor(gray: 0.941, alpha: 1)
+  context.setFillColor(paper)
+  context.fill(CGRect(x: 0, y: 0, width: width, height: height - barPixels))
+  let content = image.cropping(to: CGRect(x: 0, y: barPixels, width: width, height: height - barPixels))!
+  let top = barPixels + Int((shift * scale).rounded())
+  context.draw(content, in: CGRect(x: 0, y: height - top - content.height, width: width, height: content.height))
+  return context.makeImage()!
+}
+
+/// Checks the comparator before its verdict counts, with the clone's own window
+/// capture as a simulated Classic capture:
+/// - the same image has to pass;
+/// - its text moved 6pt down has to fail on top padding;
+/// - a clone whose text is moved up under the title bar has to fail on the
+///   title-bar band.
+/// Exits 0 only when all three happen.
 func selfcheck() -> Int32 {
   let clone = (try? JSONSerialization.jsonObject(with: Data(contentsOf: dir.appendingPathComponent("native-selftest.json")))) as? [String: Any]
   let golden = clone?["golden"] as? [String: Any] ?? [:]
@@ -254,26 +303,23 @@ func selfcheck() -> Int32 {
     return 2
   }
   let scale = number(golden["backingScale"])
-  let bar = titlebarHeight()
+  let bar = number(golden["titlebarHeight"])
   var outcomes: [String: Any] = [:]
   var ok = true
-  for (offset, expected) in [(0.0, Int32(0)), (6.0, Int32(1))] {
-    let cloneTop = number(golden["pageOriginBelowFrame"])
-    let height = image.height + Int(((cloneTop + offset) * scale).rounded())
-    let context = CGContext(data: nil, width: image.width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-    context.setFillColor(CGColor(gray: 0.941, alpha: 1))
-    context.fill(CGRect(x: 0, y: 0, width: image.width, height: height))
-    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
-    context.setFillColor(CGColor(gray: 0.9, alpha: 1))
-    context.fill(CGRect(x: 0, y: height - Int(bar * scale), width: image.width, height: Int(bar * scale)))
-    let work = FileManager.default.temporaryDirectory.appendingPathComponent("classic-golden-selfcheck-\(Int(offset))")
+  let cases: [(String, Double, Bool, Int32, String?)] = [
+    ("same image", 0, false, 0, nil),
+    ("Classic text 6pt lower", 6, false, 1, "top padding differs"),
+    ("clone text under the title bar", -40, true, 1, "cloneTitleBand"),
+  ]
+  for (name, shift, moveClone, expected, reason) in cases {
+    let work = FileManager.default.temporaryDirectory.appendingPathComponent("classic-golden-selfcheck-\(outcomes.count)")
     try? FileManager.default.removeItem(at: work)
     try! FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
     try! FileManager.default.copyItem(at: dir.appendingPathComponent("native-selftest.json"), to: work.appendingPathComponent("native-selftest.json"))
-    try! FileManager.default.copyItem(at: dir.appendingPathComponent("golden-clone.png"), to: work.appendingPathComponent("golden-clone.png"))
-    let rep = NSBitmapImageRep(cgImage: context.makeImage()!)
-    try! rep.representation(using: .png, properties: [:])!.write(to: work.appendingPathComponent("golden-classic.png"))
+    let moved = NSBitmapImageRep(cgImage: shifted(image, scale: scale, bar: bar, shift: shift))
+    let original = NSBitmapImageRep(cgImage: image)
+    try! (moveClone ? moved : original).representation(using: .png, properties: [:])!.write(to: work.appendingPathComponent("golden-clone.png"))
+    try! (moveClone ? original : moved).representation(using: .png, properties: [:])!.write(to: work.appendingPathComponent("golden-classic.png"))
     let meta: [String: Any] = ["titlebarHeight": bar, "imageOriginBelowFrame": 0, "backingScale": scale, "simulated": true]
     try! JSONSerialization.data(withJSONObject: meta).write(to: work.appendingPathComponent("golden-classic.json"))
     let run = Process()
@@ -282,13 +328,15 @@ func selfcheck() -> Int32 {
     run.standardOutput = FileHandle.nullDevice
     try! run.run()
     run.waitUntilExit()
-    let report = (try? JSONSerialization.jsonObject(with: Data(contentsOf: work.appendingPathComponent("golden-result.json")))) ?? [:]
-    outcomes["shift \(offset)pt"] = ["exit": run.terminationStatus, "expected": expected, "result": report]
-    if run.terminationStatus != expected { ok = false }
+    let report = (try? JSONSerialization.jsonObject(with: Data(contentsOf: work.appendingPathComponent("golden-result.json")))) as? [String: Any] ?? [:]
+    let text = String(describing: report)
+    let matched = run.terminationStatus == expected && (reason.map { text.contains($0) } ?? true)
+    outcomes[name] = ["exit": run.terminationStatus, "expected": expected, "reason": reason ?? NSNull(), "matched": matched, "result": report]
+    if !matched { ok = false }
   }
   outcomes["passed"] = ok
   write(outcomes, "golden-selfcheck.json")
-  print(ok ? "Comparator passes a same-origin capture and fails a 6pt shift" : "Comparator self-check failed")
+  print(ok ? "Comparator passes the same capture, fails a 6pt shift, and fails text under the title bar" : "Comparator self-check failed")
   return ok ? 0 : 1
 }
 

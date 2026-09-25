@@ -138,9 +138,35 @@ kbd {
   text-overflow: ellipsis;
 }
 .writer-editor {
+  position: relative;
   min-height: 0;
   flex: 1;
   overflow: hidden;
+}
+/* Workflow state: Classic's typeface and size table. Muted, and it fades with
+   the rest of the chrome while typing. */
+.workflow-choice {
+  position: absolute;
+  right: 18px;
+  bottom: 6px;
+  z-index: 2;
+  font:
+    11px -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  color: var(--muted);
+  transition: opacity 0.45s ease-out;
+}
+.workflow-choice select {
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 2px 4px;
+}
+.chrome-hidden .workflow-choice:not(:hover):not(:focus-within) {
+  opacity: 0;
 }
 .cm-editor {
   height: 100%;
@@ -161,10 +187,13 @@ kbd {
   scrollbar-color: var(--border) var(--paper);
 }
 .cm-content {
-  /* Classic's text container inset: floor(lineHeight) − 1 above and below,
-     ceil((window − container − scroller) / 2) plus 5px line padding at the
-     side. The defaults are its 860px window. */
-  padding: var(--writer-vertical, 26px) 0 !important;
+  /* Classic's text container inset: floor(lineHeight) − 1 below the title bar
+     and above the bottom, ceil((window − container − scroller) / 2) plus 5px line
+     padding at the side. The defaults are its 860px window. The page normally
+     starts at the title bar's bottom edge; if the title bar covers the page,
+     env(safe-area-inset-top) adds the covered part so text stays below it. */
+  padding: calc(env(safe-area-inset-top, 0px) + var(--writer-vertical, 26px)) 0
+    var(--writer-vertical, 26px) !important;
   caret-color: var(--accent);
   width: var(--writer-measure, 822px);
   min-height: 100%;

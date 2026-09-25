@@ -1,4 +1,4 @@
 Classic capture exit 2; clone window 735x615
-Comparator passes a same-origin capture and fails a 6pt shift
+Comparator passes the same capture, fails a 6pt shift, and fails text under the title bar
 Classic was not captured, so nothing was compared: ScreenCaptureKit refused Classic window 22979: The user declined TCCs for application, window, display capture
 golden exit 2

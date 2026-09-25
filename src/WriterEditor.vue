@@ -70,6 +70,17 @@ const emit = defineEmits<{
   dataAction: [message: string];
 }>();
 const container = ref<HTMLDivElement>();
+// Classic's workflow state selects the typeface and its size table. 1 is the default.
+const WORKFLOW_STATES: WorkflowState[] = [0, 1, 2, 3];
+const workflow = ref<WorkflowState>(
+  workflowState(localStorage.getItem("writer-classic.workflow")),
+);
+function chooseWorkflow(value: string) {
+  workflow.value = workflowState(value);
+  localStorage.setItem("writer-classic.workflow", String(workflow.value));
+  applyLayout();
+  view?.focus();
+}
 let view: EditorView;
 const vimConfig = new Compartment();
 const focusConfig = new Compartment();
@@ -572,4 +583,22 @@ function command(action: string) {
 }
 defineExpose({ command, focus: () => view.focus() });
 </script>
-<template><div ref="container" class="writer-editor" /></template>
+<template>
+  <div ref="container" class="writer-editor">
+    <label class="workflow-choice" @mousedown.stop>
+      <select
+        aria-label="Typeface"
+        :value="String(workflow)"
+        @change="chooseWorkflow(($event.target as HTMLSelectElement).value)"
+      >
+        <option
+          v-for="state in WORKFLOW_STATES"
+          :key="state"
+          :value="String(state)"
+        >
+          {{ WORKFLOW_FACE[state] }} ({{ state }})
+        </option>
+      </select>
+    </label>
+  </div>
+</template>

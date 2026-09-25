@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
+#import <dlfcn.h>
 
 // Native self-test for the running app, enabled by WRITER_CLASSIC_NATIVE_SELFTEST=<directory>.
 // It posts real NSEvents into the application event queue, so they take the same
@@ -57,6 +58,25 @@ static void selftest_snapshot(NSWindow *window, NSString *name, dispatch_block_t
         } else selftestReport[[name stringByAppendingString:@"-error"]] = error.localizedDescription ?: @"no image";
         done();
     }];
+}
+
+// Captures this app's own window as the window server composites it, title bar
+// included. A process may read its own windows without Screen Recording
+// permission. CGWindowListCreateImage is obsolete in the macOS 15 SDK headers
+// but still exported, so it is looked up at run time.
+typedef CGImageRef (*selftest_window_image_fn)(CGRect, uint32_t, uint32_t, uint32_t);
+static void selftest_window_capture(NSWindow *window, NSString *name) {
+    selftest_window_image_fn create = (selftest_window_image_fn)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+    // kCGWindowListOptionIncludingWindow, kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution.
+    CGImageRef image = create ? create(CGRectNull, 1 << 3, (uint32_t)window.windowNumber, 1 | 8) : NULL;
+    if (!image) {
+        selftestReport[[name stringByAppendingString:@"-error"]] = create ? @"no image" : @"CGWindowListCreateImage is unavailable";
+        return;
+    }
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:image];
+    CGImageRelease(image);
+    NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    [png writeToFile:[selftestDirectory stringByAppendingPathComponent:name] atomically:YES];
 }
 
 static void selftest_read(NSWindow *window, NSString *key, dispatch_block_t done) {
@@ -279,11 +299,14 @@ static void selftest_golden(NSWindow *window, double width, double height, NSStr
             " content.blur();"
             " const scroller = document.querySelector('.cm-scroller').getBoundingClientRect();"
             " const line = content.querySelector('.cm-line').getBoundingClientRect();"
+            " const probe = document.createElement('div'); probe.style.paddingTop = 'env(safe-area-inset-top, 0px)';"
+            " document.body.append(probe); const safeAreaTop = getComputedStyle(probe).paddingTop; probe.remove();"
             " return JSON.stringify({innerWidth: window.innerWidth, innerHeight: window.innerHeight, htmlClass: document.documentElement.className,"
             " fontSize: getComputedStyle(content).fontSize, lineHeight: getComputedStyle(content).lineHeight,"
             " fontFamily: getComputedStyle(content).fontFamily,"
             " face: document.querySelector('.writer-editor')?.dataset.face ?? null,"
             " spaceEm: Number(document.querySelector('.writer-editor')?.dataset.spaceEm ?? 0),"
+            " safeAreaTop, paddingTop: getComputedStyle(content).paddingTop,"
             " textLeft: line.left, textTop: line.top - scroller.top, scrollerTop: scroller.top});"
             "})()", literal];
         WKWebView *webview = selftest_webview(window.contentView);
@@ -291,15 +314,16 @@ static void selftest_golden(NSWindow *window, double width, double height, NSStr
             NSMutableDictionary *golden = [NSMutableDictionary dictionary];
             golden[@"windowWidth"] = @(window.frame.size.width);
             golden[@"windowHeight"] = @(window.frame.size.height);
+            golden[@"backingScale"] = @(window.backingScaleFactor);
+            // The window has a full-size content view, so the web view starts at the
+            // top of the frame, under the title bar. WebKit gives it a top content
+            // inset equal to the title bar, so the page origin sits at the title bar's
+            // bottom edge. golden-clone.png is a capture of the whole window from the
+            // frame's top edge, the same framing as the Classic capture.
+            golden[@"imageOriginBelowFrame"] = @0;
             golden[@"titlebarHeight"] = @(window.frame.size.height - window.contentLayoutRect.size.height);
             golden[@"webviewWidth"] = @(webview.bounds.size.width);
             golden[@"webviewHeight"] = @(webview.bounds.size.height);
-            golden[@"backingScale"] = @(window.backingScaleFactor);
-            // The window has a full-size content view, so the web view starts at the
-            // top of the frame, under the title bar. WebKit insets the page by the
-            // title bar (safeAreaInsets.top), and the snapshot starts at the page's
-            // origin. The comparator uses pageOriginBelowFrame to measure this image
-            // from the title bar's bottom edge, the same origin as the Classic capture.
             NSRect web = [webview convertRect:webview.bounds toView:nil];
             double webviewTop = window.frame.size.height - NSMaxY(web);
             golden[@"webviewTopBelowFrame"] = @(webviewTop);
@@ -309,9 +333,15 @@ static void selftest_golden(NSWindow *window, double width, double height, NSStr
             if ([result isKindOfClass:[NSString class]])
                 golden[@"page"] = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] ?: result;
             if (error) golden[@"scriptError"] = error.userInfo[@"WKJavaScriptExceptionMessage"] ?: error.localizedDescription;
+            if ([webview respondsToSelector:NSSelectorFromString(@"_topContentInset")])
+                golden[@"webviewTopContentInset"] = [webview valueForKey:@"_topContentInset"];
             selftestReport[@"golden"] = golden;
             selftest_after(0.8, ^{
-                selftest_snapshot(window, @"golden-clone.png", ^{ selftest_finish(); });
+                // golden-clone.png is the whole window, title bar included, the same
+                // framing as the Classic window capture. The web view snapshot is kept
+                // separately; it starts at the page origin, not at the frame top.
+                selftest_window_capture(window, @"golden-clone.png");
+                selftest_snapshot(window, @"golden-clone-webview.png", ^{ selftest_finish(); });
             });
         }];
     });

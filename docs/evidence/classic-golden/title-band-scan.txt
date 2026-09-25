@@ -1,0 +1,3 @@
+image 1470x1230 px at 2x, title bar 32.0pt
+near-grey ink in the top 32.0pt, excluding traffic lights (x<80pt) and centred title (±60pt): 0 px
+first near-grey editor ink: 60.0pt below the frame top, 28.0pt below the title bar

@@ -163,7 +163,7 @@ test("find/replace, export HTML, RTF and DOCX, then import DOCX", async ({
   let docxPath = "";
   for (const type of ["html", "rtf", "docx"]) {
     await menu(page, "File", "Export…");
-    await page.getByRole("combobox").selectOption(type);
+    await page.getByRole("dialog").getByRole("combobox").selectOption(type);
     const download = page.waitForEvent("download");
     await page
       .getByRole("dialog")
@@ -192,7 +192,7 @@ test("find/replace, export HTML, RTF and DOCX, then import DOCX", async ({
 test("RTF export retains numbered lists and hyperlinks", async ({ page }) => {
   await editor(page).fill("1. One\n2. Two\n\n[site](https://example.test)");
   await menu(page, "File", "Export…");
-  await page.getByRole("combobox").selectOption("rtf");
+  await page.getByRole("dialog").getByRole("combobox").selectOption("rtf");
   const download = page.waitForEvent("download");
   await page
     .getByRole("dialog")
@@ -211,7 +211,7 @@ test("Classic DOCX conversion preserves image alt text, code style and imported 
     "`code` and ![description](https://example.test/image.png)",
   );
   await menu(page, "File", "Export…");
-  await page.getByRole("combobox").selectOption("docx");
+  await page.getByRole("dialog").getByRole("combobox").selectOption("docx");
   const download = page.waitForEvent("download");
   await page
     .getByRole("dialog")

@@ -5,6 +5,8 @@ import {
   classicType,
   contentSizeForWidth,
   textMeasure,
+  textTopBelowFrame,
+  topPadding,
   workflowState,
 } from "../src/adaptive-layout";
 
@@ -138,4 +140,16 @@ test("a drawn face too wide for eighty glyphs keeps Classic's margin and narrows
 test("Tiempos and Grotesk states fall back to the drawn face at their own sizes", () => {
   expect(classicLayout(735, MENLO_EM, 2)).toMatchObject({ fontSize: 14 });
   expect(classicLayout(735, MENLO_EM, 0)).toMatchObject({ fontSize: 17 });
+});
+
+test("at Classic's 735 window the first line starts the title bar plus 22px below the frame", () => {
+  const { vertical } = classicLayout(735);
+  // WebKit starts the page at the 32pt title bar's bottom edge: only the inset is padding.
+  expect(topPadding(vertical, 32, 32)).toBe(22);
+  expect(textTopBelowFrame(vertical, 32, 32)).toBe(32 + 22);
+  // A page drawn from the frame's top edge, under the title bar, pads by both.
+  expect(topPadding(vertical, 32, 0)).toBe(32 + 22);
+  expect(textTopBelowFrame(vertical, 32, 0)).toBe(32 + 22);
+  // A page that starts partly under the title bar pads by the covered part.
+  expect(textTopBelowFrame(vertical, 32, 12)).toBe(32 + 22);
 });
