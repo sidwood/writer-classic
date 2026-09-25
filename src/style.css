@@ -1,9 +1,9 @@
 :root {
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #424242;
-  background: #f0f0f0;
-  --paper: #f0f0f0;
-  --text: #424242;
+  color: #1c1c17;
+  background: #f2f2f2;
+  --paper: #f2f2f2;
+  --text: #1c1c17;
   --muted: #929292;
   --dimmed: #b8b8b8;
   --chrome: #ededed;
@@ -200,7 +200,19 @@ kbd {
   flex: 0 0 auto !important;
 }
 .cm-line {
-  padding: 0 !important;
+  padding: 0 0 0 27px !important;
+}
+.cm-md-mark {
+  display: inline-block;
+  width: 27px;
+  margin-left: -27px;
+  text-align: right;
+  font-weight: 400;
+  font-style: normal;
+  color: #5c5c58;
+}
+.dark .cm-md-mark {
+  color: var(--muted);
 }
 .cm-cursor,
 .cm-dropCursor {
@@ -330,13 +342,14 @@ footer {
   min-height: 29px;
   display: flex;
   align-items: stretch;
-  background: var(--chrome);
+  background: #ededed;
   border-top: 1px solid var(--border);
   font-size: 12px;
-  color: #646464;
+  color: #b2b0ae;
   transition: opacity 0.45s ease-out;
 }
 .dark footer {
+  background: var(--chrome);
   color: var(--muted);
 }
 footer button {
@@ -356,12 +369,21 @@ footer button[aria-pressed="true"] {
   display: flex;
   flex: 1;
   align-items: stretch;
-  color: var(--muted);
+  color: #b2b0ae;
 }
 .format-bar button {
   padding: 5px 8px;
   font-weight: 600;
+  color: #b2b0ae;
+}
+.dark .format-bar,
+.dark .format-bar button {
   color: var(--muted);
+}
+.dark footer button:hover,
+.dark footer button[aria-pressed="true"],
+.dark .format-bar button[aria-pressed="true"] {
+  color: var(--accent);
 }
 .format-bar button[aria-pressed="true"] {
   color: var(--accent);
@@ -504,7 +526,7 @@ main:has(.cm-search) footer > * {
     monospace;
   white-space: pre-wrap;
 }
-@media (max-width: 760px) {
+@media (max-width: 734px) {
   .format-bar button {
     padding-inline: 5px;
   }
@@ -519,8 +541,8 @@ main:has(.cm-search) footer > * {
   }
 }
 @media (max-width: 580px) {
-  .format-bar button:nth-child(10),
-  .format-bar button:nth-child(11) {
+  .format-bar button:nth-child(7),
+  .format-bar button:nth-child(8) {
     display: none;
   }
 }

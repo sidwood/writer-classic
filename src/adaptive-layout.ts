@@ -96,6 +96,17 @@ export function classicLayout(
   state: WorkflowState = 1,
 ) {
   const type = classicType(width, state);
+  // The 735-point shot starts the mark gutter at 52. 616 leaves the same 52
+  // after the 15px scroller (52 + 616 + 15 + 52 = 735). Every face and
+  // workflow state uses that inset. Wider windows keep the measured column.
+  if (width === NARROWEST_WINDOW) {
+    return {
+      ...type,
+      left: 52,
+      textWidth: 616,
+      vertical: Math.floor(type.lineHeight) - 1,
+    };
+  }
   // Classic's own face is known only for Nitti Pro. Other states use the drawn face.
   const referenceEm = state === 1 ? NITTI_SPACE_EM : spaceEm;
   const classicInset = inset(width, textMeasure(type.fontSize * referenceEm));

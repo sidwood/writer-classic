@@ -43,13 +43,13 @@ test("text measure is ceil(glyph × 80 + 11)", () => {
   expect(textMeasure(9.6328125)).toBe(782);
 });
 
-test("Classic's default 735-point window puts 16px text 14px in and 22px down", () => {
-  // container ceil(16 × 0.54 × 80 + 11) = 703, inset ceil((735 − 703 − 15) / 2) = 9.
+test("Classic's 735-point window puts the mark gutter at 52 and the column at 616", () => {
+  // 52 + 616 + 15px scroller + 52 = 735. Vertical inset stays floor(lineHeight) − 1.
   expect(classicLayout(735)).toMatchObject({
     fontSize: 16,
     lineHeight: 23.6026,
-    left: 14,
-    textWidth: 693,
+    left: 52,
+    textWidth: 616,
     vertical: 22,
   });
 });
@@ -120,10 +120,10 @@ test("the column is eighty advances of the drawn face, not the 0.54em Nitti gues
 });
 
 test("a drawn face too wide for eighty glyphs keeps Classic's margin and narrows", () => {
-  // 80 Menlo spaces at 16px are 782px, wider than Classic's 735 window allows.
+  // At 735 every face uses the shot gutter, not the 14px Nitti floor.
   expect(classicLayout(735, MENLO_EM)).toMatchObject({
-    left: 14,
-    textWidth: 692,
+    left: 52,
+    textWidth: 616,
   });
   // Classic gives Nitti Pro a 7px inset at 860; Menlo keeps that margin.
   expect(classicLayout(860, MENLO_EM)).toMatchObject({
@@ -138,8 +138,16 @@ test("a drawn face too wide for eighty glyphs keeps Classic's margin and narrows
 });
 
 test("Tiempos and Grotesk states fall back to the drawn face at their own sizes", () => {
-  expect(classicLayout(735, MENLO_EM, 2)).toMatchObject({ fontSize: 14 });
-  expect(classicLayout(735, MENLO_EM, 0)).toMatchObject({ fontSize: 17 });
+  expect(classicLayout(735, MENLO_EM, 2)).toMatchObject({
+    fontSize: 14,
+    left: 52,
+    textWidth: 616,
+  });
+  expect(classicLayout(735, MENLO_EM, 0)).toMatchObject({
+    fontSize: 17,
+    left: 52,
+    textWidth: 616,
+  });
 });
 
 test("at Classic's 735 window the first line starts the title bar plus 22px below the frame", () => {

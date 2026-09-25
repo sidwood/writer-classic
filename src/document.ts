@@ -22,8 +22,9 @@ export class WriterDocument {
 }
 
 export function statistics(text: string) {
-  const words = text.match(/\S+/gu)?.length ?? 0;
-  const characters = Array.from(text).length;
+  const words = text.match(/\w+/gu)?.length ?? 0;
+  const characters = Array.from(text).filter((character) => character !== "\n")
+    .length;
   const seconds = Math.ceil(words / 3.5);
   const time = [
     Math.floor(seconds / 3600),

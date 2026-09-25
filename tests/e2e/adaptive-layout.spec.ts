@@ -32,11 +32,11 @@ async function textBlock(page: import("@playwright/test").Page) {
   });
 }
 
-// Classic's inset: ceil((window − container − 15) / 2) + 5 at the side and
-// floor(lineHeight) − 1 at the top. The container is eighty spaces of the face
-// that draws. Classic's Nitti Pro is not loaded here, so that face is Menlo.
+// At 735 the mark gutter starts at 52 and the column is 616. Wider windows
+// centre eighty spaces of the face that draws. Classic's Nitti Pro is not
+// loaded here, so that face is Menlo. Top inset is floor(lineHeight) − 1.
 for (const [width, fontSize, left, top, measure] of [
-  [735, "16px", 14, 22, 692],
+  [735, "16px", 52, 22, 616],
   [860, "19px", 12, 26, 821],
   [1280, "24px", 54, 32, 1157],
 ] as const) {

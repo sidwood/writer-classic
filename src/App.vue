@@ -415,8 +415,8 @@ async function newDocument(
     );
     new WebviewWindow(id, {
       title: fileTitle(path),
-      width: 860,
-      height: 640,
+      width: 735,
+      height: 615,
       minWidth: 560,
       minHeight: 320,
       visible: false,
@@ -1005,8 +1005,8 @@ onMounted(async () => {
             }
             new WebviewWindow(documentLabel, {
               title: recoveredTitle,
-              width: 860,
-              height: 640,
+              width: 735,
+              height: 615,
               minWidth: 560,
               minHeight: 320,
               visible: false,
@@ -1317,6 +1317,24 @@ onBeforeUnmount(() => {
           H{{ level }}
         </button>
         <button
+          title="Unordered item (⌘L)"
+          aria-label="Unordered item"
+          :aria-pressed="marks.unordered"
+          @mousedown.prevent
+          @click="action('unordered')"
+        >
+          - List
+        </button>
+        <button
+          title="Ordered item (⇧⌘L)"
+          aria-label="Ordered item"
+          :aria-pressed="marks.ordered"
+          @mousedown.prevent
+          @click="action('ordered')"
+        >
+          1. List
+        </button>
+        <button
           class="bold"
           title="Strong (⌘B)"
           aria-label="Strong"
@@ -1347,22 +1365,12 @@ onBeforeUnmount(() => {
           S
         </button>
         <button
-          title="Ordered item (⇧⌘L)"
-          aria-label="Ordered item"
-          :aria-pressed="marks.ordered"
+          title="Link (⌘K)"
+          aria-label="Link"
           @mousedown.prevent
-          @click="action('ordered')"
+          @click="action('link')"
         >
-          1. List
-        </button>
-        <button
-          title="Unordered item (⌘L)"
-          aria-label="Unordered item"
-          :aria-pressed="marks.unordered"
-          @mousedown.prevent
-          @click="action('unordered')"
-        >
-          • List
+          Link
         </button>
       </div>
       <span v-if="vim" class="vim-mode" aria-label="Vim state">{{ mode }}</span>
@@ -1371,9 +1379,9 @@ onBeforeUnmount(() => {
         :class="{ selected: selection }"
         aria-label="Document statistics"
       >
-        <span :title="selection ? 'Selected words' : 'Words'"
+        <span title="Characters">{{ stats.characters }} C</span
+        ><span :title="selection ? 'Selected words' : 'Words'"
           >{{ stats.words }} W</span
-        ><span title="Characters">{{ stats.characters }} C</span
         ><span title="Reading time">{{ stats.time }}</span>
       </div>
     </footer>

@@ -719,7 +719,7 @@ fn open_window(app: &tauri::AppHandle, path: Option<&Path>) -> tauri::Result<()>
     tauri::WebviewWindowBuilder::new(app, label, tauri::WebviewUrl::App(address.into()))
         .visible(false)
         .title(document_title(path))
-        .inner_size(860.0, 640.0)
+        .inner_size(735.0, 615.0)
         .min_inner_size(560.0, 320.0)
         .build()?;
     Ok(())

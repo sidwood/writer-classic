@@ -213,8 +213,11 @@ const sentenceFocus = ViewPlugin.fromClass(
 );
 
 // Auto Markdown keeps its markers in the style of the text they format.
+// HeaderMark, QuoteMark, ListMark, LinkMark, EmphasisMark, and CodeMark are
+// processingInstruction. Marks stay regular weight; heading words stay bold.
 const highlighting = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "bold" },
+  { tag: tags.processingInstruction, class: "cm-md-mark", fontWeight: "400" },
   { tag: tags.strong, fontWeight: "bold" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
