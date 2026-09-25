@@ -55,4 +55,6 @@ qlty config validate
 qlty check --all
 ```
 
+`.githooks/commit-msg` checks commit messages. Enable it once per clone with `git config core.hooksPath .githooks`.
+
 The browser suite tests actual Vim editing, default and persisted preferences, all visual-mode operators, raw file round trips, draft recovery, modal guards, find/replace, previews and export/import. Native dialog failures are tested at the Tauri boundary; Rust tests exercise real filesystem writes, symlinks, conflict rejection, native file versions and moves. They do not replace a controlled native desktop scenario.
