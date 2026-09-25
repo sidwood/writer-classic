@@ -58,7 +58,7 @@ test("the 735 sample shot keeps Classic's gutter, type, marks, and footer", asyn
     const heading = [...line.querySelectorAll("span")].find((span) =>
       span.textContent?.includes("Morning"),
     );
-    const mark = document.querySelector(".cm-md-mark");
+    const mark = document.querySelector(".cm-md-gutter");
     const quote = glyph(">");
     return {
       lineLeft: line.getBoundingClientRect().left - frame.left,
@@ -131,5 +131,31 @@ test("the 735 sample shot keeps Classic's gutter, type, marks, and footer", asyn
   await expect(footer).toContainText("134 C");
   await expect(footer).toContainText("24 W");
   await expect(footer).toContainText("00:00:07");
+  const timeFit = await footer
+    .locator("[title='Reading time']")
+    .evaluate((span) => {
+      const bar = span.closest("footer")!;
+      return {
+        spanRight: span.getBoundingClientRect().right,
+        footerRight: bar.getBoundingClientRect().right,
+      };
+    });
+  expect(timeFit.spanRight).toBeLessThanOrEqual(timeFit.footerRight + 1);
+  await expect(page.getByLabel("Vim state")).toBeVisible();
+  await expect(page.getByLabel("Vim state")).toHaveText("NORMAL");
+  for (const name of [
+    "Heading 1",
+    "Heading 2",
+    "Heading 3",
+    "Heading 4",
+    "Heading 5",
+    "Heading 6",
+    "Unordered item",
+    "Ordered item",
+    "Strong",
+    "Strikethrough",
+    "Link",
+  ])
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   await expect(page.locator(".unfocused-sentence")).toHaveCount(0);
 });

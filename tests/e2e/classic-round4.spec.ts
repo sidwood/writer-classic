@@ -126,8 +126,10 @@ test("Auto Markdown markers take the style of the text they format", async ({
   expect(Number((await styleAt(2, 9))?.fontWeight)).toBeGreaterThanOrEqual(700);
   expect((await styleAt(2, 9))?.color).toBe(body?.color);
   const hash = await styleAt(0, 0);
-  expect(hash).toEqual(await styleAt(0, 2));
-  expect(Number(hash?.fontWeight)).toBeGreaterThanOrEqual(700);
+  const headingWord = await styleAt(0, 2);
+  expect(hash?.color).toBe("rgb(92, 92, 88)");
+  expect(Number(hash?.fontWeight)).toBe(400);
+  expect(Number(headingWord?.fontWeight)).toBeGreaterThanOrEqual(700);
   expect(hash?.fontSize).toBe(body?.fontSize);
   expect(await styleAt(4, 0)).toEqual(body);
 });

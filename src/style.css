@@ -223,12 +223,8 @@ kbd {
 .cm-line {
   padding: 0 0 0 27px !important;
 }
-.cm-md-mark {
-  font-weight: 400;
-  font-style: normal;
-  color: #5c5c58;
-}
-.cm-md-gutter {
+.cm-md-gutter,
+.cm-md-bullet {
   display: inline-block;
   width: 27px;
   margin-left: -27px;
@@ -238,13 +234,26 @@ kbd {
   font-weight: 400;
   font-style: normal;
 }
+.cm-md-gutter,
+.cm-md-quote {
+  color: #5c5c58;
+  font-weight: 400;
+  font-style: normal;
+}
+.cm-md-gutter span,
+.cm-md-quote span {
+  color: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+}
 .cm-md-quote {
   display: inline;
   width: auto;
   margin: 0;
   text-align: left;
 }
-.dark .cm-md-mark {
+.dark .cm-md-gutter,
+.dark .cm-md-quote {
   color: var(--muted);
 }
 .cm-cursor,
@@ -445,9 +454,9 @@ footer button[aria-pressed="true"] {
   white-space: nowrap;
 }
 .statistics span {
-  padding: 0 12px;
+  padding: 0 8px;
   line-height: 21px;
-  min-width: 70px;
+  min-width: 48px;
   border-left: 1px solid var(--border);
 }
 .statistics.selected {

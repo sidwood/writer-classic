@@ -212,12 +212,11 @@ const sentenceFocus = ViewPlugin.fromClass(
   { decorations: (value) => value.decorations },
 );
 
-// Auto Markdown keeps its markers in the style of the text they format.
-// HeaderMark, QuoteMark, ListMark, LinkMark, EmphasisMark, and CodeMark are
-// processingInstruction. Marks stay regular weight; heading words stay bold.
+// Emphasis, strong, code, and link marks keep the style of the text they
+// format. Grey regular weight is only on line marks #, ##, -, 1., and >,
+// via .cm-md-gutter and .cm-md-quote. Heading words stay bold.
 const highlighting = HighlightStyle.define([
   { tag: tags.heading, fontWeight: "bold" },
-  { tag: tags.processingInstruction, class: "cm-md-mark", fontWeight: "400" },
   { tag: tags.strong, fontWeight: "bold" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
@@ -255,8 +254,14 @@ function lineMarkDecorations(view: EditorView): DecorationSet {
           return;
         let end = node.to;
         if (end < line.to && doc.sliceString(end, end + 1) === " ") end += 1;
+        const mark = doc.sliceString(node.from, node.to);
+        // * and + stay with the body. Grey is only #, ##, -, 1., and >.
+        const grey =
+          node.name === "HeaderMark" || mark === "-" || /^\d+\.$/.test(mark);
         ranges.push(
-          Decoration.mark({ class: "cm-md-gutter" }).range(node.from, end),
+          Decoration.mark({
+            class: grey ? "cm-md-gutter" : "cm-md-bullet",
+          }).range(node.from, end),
         );
       },
     });
